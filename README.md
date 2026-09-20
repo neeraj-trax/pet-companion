@@ -32,7 +32,7 @@ and gets out of the way while you work.
   dive-while-app, hug edges, hide from screenshots, open at login, quit.
 
 ## Permissions
-None required. Play/pause asks for Automation access to the music app the first time.
+Microphone (asked once, only during a call, so it can react when you speak) and Automation for the music app (asked once, for play/pause). Nothing else.
 
 ## For developers / agents
 See `AGENTS.md` for the code map, how to verify without a screen, and what is unfinished.

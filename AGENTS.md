@@ -4,13 +4,13 @@ Read this first. It tells you what the app is, how the code is laid out, what ea
 
 ## What it is
 
-A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to a **Stash** folder. It hides at the screen edge when you are busy and peeks out now and then. Music playing in Spotify/Apple Music shows up as a player chip. No permissions are required (play/pause asks once for Automation on first use).
+A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to a **Stash** folder. When you are busy it shrinks to half size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip; while you speak on a call, sound bars show on its TV face. No permissions are required except Microphone (asked once, only when a call is already using the mic) and Automation for play/pause (asked once).
 
 Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget, never distracting during work.
 
 - Native Swift + AppKit, no Xcode project, no dependencies. `swift build` compiles it.
 - Character: a sprite-sheet cloud-headed robot (`Assets/pet-atlas.webp`, personal use only, not in git; see "Assets"). The old vector shark drawing remains as a fallback when the atlas is missing.
-- Two agents have worked on this in parallel with a file split (see "Ownership"). Keep that split.
+- Two agents worked on this in parallel for a while with a file split (see "Ownership"); currently one agent owns everything.
 
 ## Build, run, verify
 
