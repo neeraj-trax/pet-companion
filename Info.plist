@@ -14,5 +14,6 @@
   <key>LSUIElement</key><true/>
   <key>LSMultipleInstancesProhibited</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>Pet reacts when you speak during calls. It only listens while another app already has the microphone open.</string>
 </dict>
 </plist>

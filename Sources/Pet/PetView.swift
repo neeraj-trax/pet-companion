@@ -84,7 +84,6 @@ final class PetView: NSView {
         if let atlas = SpriteAtlas.image(for: p.coat) {
             drawSprite(ctx, p, atlas: atlas)
             drawZzz(ctx, p)
-            drawThought(ctx, p)
             drawParticles(ctx, p)
             ctx.restoreGState()
             return
@@ -129,6 +128,7 @@ final class PetView: NSView {
 
     /// Which animation row the controller's pose asks for. The pose is the only contract with the controller.
     private func inferSpriteState(_ p: PetPose) -> SpriteState {
+        if p.walk != 0 { return p.walk < 0 ? .runningLeft : .runningRight }               // strolling
         if p.mouth == .surprised { return p.facing < 0 ? .runningLeft : .runningRight }     // being dragged
         if p.mouth == .chomp && p.flop < 0.5 { return .jumping }                             // poke / drop hover
         if p.mouth == .happy { return .waving }                                             // pill open, welcome
@@ -161,10 +161,95 @@ final class PetView: NSView {
         ctx.translateBy(x: feet.x, y: feet.y + p.bob)
         ctx.scaleBy(x: p.squashX, y: p.squashY)
         ctx.rotate(by: p.tilt * 0.6)
+        if p.flop > 0.01 {
+            // lie down: roll onto the back (head away from the ground) and rest the whole body on the floor
+            let half = PetGeometry.characterHalfHeight
+            let angle = -p.facing * p.flop * .pi / 2
+            let restShift = (half - PetGeometry.bodyHalfWidth) * p.flop   // lying, the body is only as tall as it is wide
+            ctx.translateBy(x: 0, y: half - restShift)
+            ctx.rotate(by: angle)
+            ctx.translateBy(x: 0, y: -half)
+        }
         ctx.translateBy(x: -feet.x, y: -feet.y)
         ctx.interpolationQuality = .high
         let o = PetGeometry.spriteCellOrigin
         ctx.draw(cell, in: CGRect(x: o.x, y: o.y, width: SpriteAtlas.cell.width * s, height: SpriteAtlas.cell.height * s))
+        drawScreen(ctx, p, atlas: atlas, frame: frame)
+        ctx.restoreGState()
+    }
+
+    // MARK: TV screen (expressions live on the face panel instead of a thought bubble)
+
+    /// The face panel in view coords (measured in the atlas: cell x 62…140, y 82…126 bottom-up).
+    private var screenRect: CGRect {
+        let s = PetGeometry.spriteScale, o = PetGeometry.spriteCellOrigin
+        return CGRect(x: o.x + 64 * s, y: o.y + 84 * s, width: 74 * s, height: 40 * s)
+    }
+
+    private var screenColours: (bg: NSColor, ink: NSColor) = (NSColor(red: 0.11, green: 0.13, blue: 0.27, alpha: 1), NSColor(red: 0.62, green: 0.93, blue: 0.96, alpha: 1))
+    private var screenColoursFor: Coat? = nil
+
+    private func sampleScreenColours(_ atlas: CGImage) {
+        guard screenColoursFor != pose.coat else { return }
+        screenColoursFor = pose.coat
+        // panel colour = darkest common pixel, glyph colour = brightest pixel, inside the face panel of the idle frame
+        let x0 = 66, y0 = Int(SpriteAtlas.cell.height) - 124, w = 70, h = 38          // top-down rect
+        guard let cell = atlas.cropping(to: CGRect(x: x0, y: y0, width: w, height: h)),
+              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+        ctx.draw(cell, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let d = ctx.data?.assumingMemoryBound(to: UInt8.self) else { return }
+        var best: (v: CGFloat, c: NSColor) = (-1, .white)
+        var darkSum: [CGFloat] = [0, 0, 0]; var darkN: CGFloat = 0
+        for i in stride(from: 0, to: w * h * 4, by: 4) {
+            let r = CGFloat(d[i]) / 255, g = CGFloat(d[i + 1]) / 255, b = CGFloat(d[i + 2]) / 255
+            let v = max(r, g, b)
+            if v > best.v { best = (v, NSColor(red: r, green: g, blue: b, alpha: 1)) }
+            if v < 0.45 && v > 0.08 { darkSum[0] += r; darkSum[1] += g; darkSum[2] += b; darkN += 1 }
+        }
+        if darkN > 0 {
+            screenColours = (NSColor(red: darkSum[0] / darkN, green: darkSum[1] / darkN, blue: darkSum[2] / darkN, alpha: 1), best.c)
+        }
+    }
+
+    private func drawScreen(_ ctx: CGContext, _ p: PetPose, atlas: CGImage, frame: SpriteFrame) {
+        let showText = p.thoughtAlpha > 0.05 && !p.thought.isEmpty
+        let listening = p.listening > 0.05
+        guard showText || listening else { return }
+        sampleScreenColours(atlas)
+        let r = screenRect
+        ctx.saveGState()
+        ctx.setAlpha(max(p.thoughtAlpha, p.listening))
+        // wipe the "> _" glyphs with the panel colour
+        ctx.setFillColor(screenColours.bg.cgColor)
+        ctx.fill(r.insetBy(dx: 1, dy: 1))
+        if listening {
+            // little sound bars, dancing
+            let bars = 5
+            let gap: CGFloat = 3, w = (r.width - 12 - gap * CGFloat(bars - 1)) / CGFloat(bars)
+            ctx.setFillColor(screenColours.ink.cgColor)
+            for i in 0..<bars {
+                let phase = p.time * 9 + CGFloat(i) * 1.3
+                let h = (0.25 + 0.75 * abs(sin(phase)) * p.listening) * (r.height - 10)
+                let x = r.minX + 6 + CGFloat(i) * (w + gap)
+                let bar = CGRect(x: x, y: r.midY - h / 2, width: w, height: h)
+                ctx.addPath(CGPath(roundedRect: bar, cornerWidth: w / 2, cornerHeight: w / 2, transform: nil)); ctx.fillPath()
+            }
+        } else {
+            var size: CGFloat = 12
+            var str = NSAttributedString(string: p.thought, attributes: [.font: UI.roundedFont(size, .bold), .foregroundColor: screenColours.ink])
+            while str.size().width > r.width - 6 && size > 7 {
+                size -= 1
+                str = NSAttributedString(string: p.thought, attributes: [.font: UI.roundedFont(size, .bold), .foregroundColor: screenColours.ink])
+            }
+            var text = p.thought
+            while str.size().width > r.width - 6 && text.count > 2 {
+                text = String(text.dropLast(2)) + "…"
+                str = NSAttributedString(string: text, attributes: [.font: UI.roundedFont(size, .bold), .foregroundColor: screenColours.ink])
+            }
+            let sz = str.size()
+            str.draw(at: CGPoint(x: r.midX - sz.width / 2, y: r.midY - sz.height / 2))
+        }
         ctx.restoreGState()
     }
 
@@ -466,7 +551,10 @@ final class PetView: NSView {
     private func drawZzz(_ ctx: CGContext, _ p: PetPose) {
         guard p.zzz > 0.01 else { return }
         let c = PetGeometry.bodyCenter
-        let base = CGPoint(x: c.x + p.facing * 26, y: topNow(p) - 12)
+        var base = CGPoint(x: c.x + p.facing * 26, y: topNow(p) - 12)
+        if p.flop > 0.5 {   // lying down: the head is off to the side, near the ground
+            base = CGPoint(x: c.x + p.facing * (PetGeometry.characterHalfHeight - 10), y: PetGeometry.bodyBottom + PetGeometry.bodyHalfWidth * 2 - 6)
+        }
         for i in 0..<3 {
             let phase = (p.time * 0.45 + CGFloat(i) / 3).truncatingRemainder(dividingBy: 1)
             let alpha = p.zzz * min(1, phase * 3) * (1 - phase)
@@ -566,14 +654,13 @@ enum IconRenderer {
         cells.append(("review", base, SpriteFrame(row: 8, col: 2)))
         cells.append(("look 45°", base, SpriteAtlas.lookFrame(dx: 1, dyUp: 1)))
         cells.append(("look 270°", base, SpriteAtlas.lookFrame(dx: -1, dyUp: 0)))
-        var p = base; p.submerged = 1; p.waterline = PetGeometry.bodyBottom + PetGeometry.submergeDepth; p.wake = 1
-        cells.append(("submerged", p, SpriteFrame(row: 0, col: 0)))
-        p = base; p.submerged = 1; p.waterline = PetGeometry.bodyBottom + PetGeometry.submergeDepth * PetGeometry.periscopeFraction
-        cells.append(("periscope", p, SpriteFrame(row: 0, col: 0)))
-        p = base; p.eyeStyle = .closed; p.zzz = 1; p.shadow = 1
+        var p = base; p.eyeStyle = .closed; p.zzz = 1; p.shadow = 1
         cells.append(("nap", p, SpriteFrame(row: 0, col: 1)))
         p = base; p.thought = "hm"; p.thoughtAlpha = 1; p.shadow = 1
         cells.append(("thought", p, SpriteFrame(row: 6, col: 1)))
+        p = base; p.walk = 1; p.squashX = 0.55; p.squashY = 0.55; cells.append(("stroll (small)", p, SpriteFrame(row: 1, col: 3)))
+        p = base; p.listening = 1; cells.append(("listening", p, SpriteFrame(row: 0, col: 0)))
+        p = base; p.flop = 1; p.eyeStyle = .closed; p.zzz = 1; cells.append(("lying nap", p, SpriteFrame(row: 0, col: 1)))
         for coat in Coat.allCases {
             p = base; p.coat = coat
             cells.append((coat.title, p, SpriteFrame(row: 0, col: 0)))

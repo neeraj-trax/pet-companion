@@ -102,11 +102,11 @@ final class RingPanel: NSPanel {
     // MARK: show / hide
 
     /// Centre the ring on the shark's body and open the fan away from its edge.
-    func show(near petRect: CGRect, edge: ScreenEdge, screen f: CGRect) {
+    func show(near petRect: CGRect, edge: ScreenEdge, screen f: CGRect, centreX: CGFloat? = nil) {
         hideWork?.cancel()
         lastEdge = edge
         lastScreen = f
-        let centre = CGPoint(x: petRect.midX, y: petRect.minY + (PetGeometry.bodyCenter.y - PetGeometry.bodyBottom) + 44)
+        let centre = CGPoint(x: centreX ?? petRect.midX, y: petRect.minY + (PetGeometry.bodyCenter.y - PetGeometry.bodyBottom) + 44)
         // find a rotation (and if needed a smaller radius) that keeps every chip on screen and off the pet
         let fit = bestFit(centre: centre, preferred: RingLayout.centreAngle(for: edge), screen: f, petRect: petRect)
         ring.centreAngle = fit.angle

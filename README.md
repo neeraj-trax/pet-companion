@@ -21,10 +21,13 @@ and gets out of the way while you work.
 - **Music**: when Spotify or Apple Music is playing, a player chip appears first in the ring;
   click it to play/pause (macOS asks once for permission).
 - **Move it**: drag it anywhere. Near an edge it tucks into that edge; elsewhere it stays put.
-- **Hiding**: it slips behind the edge when you type for a while, when you've been in one app for
-  15 minutes, when a fullscreen app is in front, or when you pick "Shh for an hour". It peeks out
-  now and then and comes back when your cursor approaches.
-- **Click** it to poke. Naps when you're away.
+- **Out of the way**: when you type for a while, when you've been in one app for 15 minutes, or
+  when you pick "Shh for an hour", it shrinks to half size and strolls along the edge. Move your
+  cursor near it and it grows back. Fullscreen apps hide it completely.
+- **Click** it to poke. **Double-click** to jump to the app you were using before.
+- **Sleep**: 10 seconds without mouse or keyboard and it lies down; any input wakes it.
+- **Talks on its screen**: little messages and expressions show on its TV face. During a call,
+  sound bars appear while you speak (macOS asks once for microphone access).
 - Right-click menu: apps, clipboard, stash, hide, nap, come here, shh, skin, mood, quiet hours,
   dive-while-app, hug edges, hide from screenshots, open at login, quit.
 

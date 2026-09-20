@@ -18,7 +18,7 @@ enum Mood: String, CaseIterable {
 
 /// Owns the pet window, runs the animation loop, and decides what the shark feels like doing.
 final class PetController: NSObject, NSMenuDelegate {
-    enum State { case idle, wandering, napping, poked, dragging, landing, diving, submerged, periscope, surfacing }
+    enum State { case idle, wandering, napping, poked, dragging, landing, shrinking, strolling, growing }
     enum DiveReason { case menu, drag, idle, typing, autopilot, shh, app }
 
     let window = PetWindow()
@@ -26,6 +26,7 @@ final class PetController: NSObject, NSMenuDelegate {
     let launchPanel = RingPanel()
     let store = ShortcutStore.shared
     let music = MusicWatcher()
+    let mic = MicWatcher()
     private var musicNoteIn: TimeInterval = 20
 
     private var pose = PetPose()
@@ -49,6 +50,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private var nextDecisionIn: TimeInterval = 8
     private var lastNapEnded: TimeInterval = 0
     private var napDuration: TimeInterval = 0
+    private var afkNap = false
     private var wanderTarget: CGFloat = 0
     private var wanderDeadline: TimeInterval = 0
     private var blinkIn: TimeInterval = 3
@@ -103,23 +105,19 @@ final class PetController: NSObject, NSMenuDelegate {
     private var turnT: TimeInterval = -1
     private var spinT: TimeInterval = -1
 
-    // poke
+    // poke / double-click
     private var pokeCount = 0
     private var lastPoke: TimeInterval = -10
+    private var lastClickAt: TimeInterval = -10
 
     // side-edge peeking (0 = tucked away, 1 = fully out)
     private var peek: CGFloat = 1
     private var peekTarget: CGFloat = 1
     private var peekChangeIn: TimeInterval = 4
 
-    // under water (bottom edge): 0 standing ... 1 only the fin shows
-    private var depth: CGFloat = 0
+    // stroll: 0 = full size, 1 = small
+    private var mini: CGFloat = 0
     private var diveReason: DiveReason = .idle
-    /// Depth at which even the fin tip is under the edge.
-    private let divePeak: CGFloat = (PetGeometry.earTop + 8 - PetGeometry.bodyBottom) / PetGeometry.submergeDepth
-    private var diveSkipHop = false
-    private var diveBubbled = false
-    private var diveTurned = false
     private var cruiseUntil: TimeInterval = 0
     private var cruiseDir: CGFloat = 1
     private var cruiseSpeed: CGFloat = 0
@@ -128,18 +126,10 @@ final class PetController: NSObject, NSMenuDelegate {
     private var pauseUntil: TimeInterval = 0
     private var turnUntil: TimeInterval = 0
     private var hitWall = false
-    private var periscopeIn: TimeInterval = 60
-    private var periscopeHold: TimeInterval = 1.5
-    private var periscopeBlinked = false
-    private var lastPeriscope: TimeInterval = -100
-    private var slowCursorNear: TimeInterval = 0
     private var lastSelfSurface: TimeInterval = -1000
     private var surfaceFrom: CGFloat = 0
     private var surfaceDuration: TimeInterval = 0.6
-    private var surfaceFast = true
-    private var surfaceOvershoot: CGFloat = 0.08
     private var surfaceOpenPanel = false
-    private var surfaceDropped = false
     private var pendingComeHere: CGPoint? = nil
     private var fullscreenHidden = false
     private var fullscreenCheckIn: TimeInterval = 1
@@ -159,7 +149,6 @@ final class PetController: NSObject, NSMenuDelegate {
     private var saidBrb = false
     private var selfTesting = false
     private var pendingThoughts: [(TimeInterval, String, TimeInterval)] = []
-    private var firstRunSurfaceAt: TimeInterval = -1
 
     override init() {
         super.init()
@@ -213,20 +202,11 @@ final class PetController: NSObject, NSMenuDelegate {
         }
         enterIdle()
         let d = UserDefaults.standard
-        if !d.bool(forKey: Keys.firstRun) && edge == .bottom && hugEdges {
-            // first launch: the fin arrives, cruises for a moment, then the shark says hi
+        if !d.bool(forKey: Keys.firstRun) {
             d.set(true, forKey: Keys.firstRun)
-            d.set(true, forKey: Keys.underwater)
-            firstRunSurfaceAt = time + 4
-        }
-        if d.bool(forKey: Keys.underwater) && edge == .bottom && hugEdges {
-            depth = 1
-            pose.submerged = 1
-            pose.waterline = PetGeometry.bodyBottom + PetGeometry.submergeDepth
-            pose.earPerk = 0.5
-            beginSubmerged()
-            setOrigin(edgeTarget(for: .bottom, in: currentScreen.visibleFrame, from: origin))
-            view.pose = pose
+            thinkLater("hi! ◠‿◠", after: 1, for: 2.6)
+            thinkLater("rest your mouse on me", after: 4, for: 4)
+            thinkLater("drop files on me too", after: 8.5, for: 3.5)
         }
     }
 
@@ -245,8 +225,8 @@ final class PetController: NSObject, NSMenuDelegate {
     private func desiredInterval(mouse: CGPoint) -> TimeInterval {
         if screenAsleep || fullscreenHidden { return 2.0 }
         switch state {
-        case .landing, .dragging, .wandering, .poked, .diving, .surfacing, .periscope: return 1.0 / 60.0
-        case .submerged: return cruiseSpeed > 1 ? 1.0 / 30.0 : 1.0 / 15.0
+        case .landing, .dragging, .wandering, .poked, .shrinking, .growing: return 1.0 / 60.0
+        case .strolling: return cruiseSpeed > 1 ? 1.0 / 30.0 : 1.0 / 15.0
         default: break
         }
         if launchPanel.isShown || pressed || pulseT >= 0 || turnT >= 0 || spinT >= 0 || gulpT >= 0
@@ -281,10 +261,6 @@ final class PetController: NSObject, NSMenuDelegate {
         recentApps.removeAll { $0.path == url.path }
         recentApps.insert(url, at: 0)
         if recentApps.count > 4 { recentApps.removeLast() }
-        if isUnderwater && (moodNow == .normal || moodNow == .chatty) && state == .submerged
-            && time - lastPeriscope > 60 && !typing {
-            startPeriscope()
-        }
     }
 
     private var switchBackApps: [URL] {
@@ -300,17 +276,12 @@ final class PetController: NSObject, NSMenuDelegate {
     var bodyCenterOnScreen: CGPoint {
         CGPoint(x: origin.x + PetGeometry.bodyCenter.x, y: origin.y + PetGeometry.bodyCenter.y)
     }
-    /// A point that is always on-screen (fin tip area), used to resolve the screen and distances.
-    private var finPointOnScreen: CGPoint {
-        CGPoint(x: origin.x + PetGeometry.bodyCenter.x, y: origin.y + PetGeometry.earTop - 6)
-    }
-    private var isUnderwater: Bool { state == .diving || state == .submerged || state == .periscope || state == .surfacing }
-    private var refPoint: CGPoint { isUnderwater ? finPointOnScreen : bodyCenterOnScreen }
+    private var refPoint: CGPoint { bodyCenterOnScreen }
     private var typing: Bool { keyIdle < 3 }
 
     private var lastKnownScreen: NSScreen?
     private var currentScreen: NSScreen {
-        let c = finPointOnScreen
+        let c = bodyCenterOnScreen
         let s = NSScreen.screens.first { $0.frame.insetBy(dx: -1, dy: -1).contains(c) }
             ?? NSScreen.main ?? NSScreen.screens.first ?? lastKnownScreen
         lastKnownScreen = s
@@ -321,22 +292,14 @@ final class PetController: NSObject, NSMenuDelegate {
         NSScreen.screens.first { $0.frame.contains(point) } ?? currentScreen
     }
 
-    private var finHitRectOnScreen: CGRect {
-        let f = currentScreen.visibleFrame
-        let autoHideDock = f.minY == currentScreen.frame.minY
-        return CGRect(x: origin.x + 58, y: f.minY + (autoHideDock ? 2 : -2), width: 54, height: 30)
-    }
-
     /// True when a screen point is on the shark's visible silhouette.
     func petContains(_ point: CGPoint) -> Bool {
-        if isUnderwater && depth > 0.5 { return finHitRectOnScreen.contains(point) }
         let local = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
         guard PetGeometry.hitPath(bob: pose.bob, facing: pose.facing, squashX: pose.squashX, squashY: pose.squashY).contains(local) else { return false }
         return currentScreen.visibleFrame.insetBy(dx: -2, dy: -2).contains(point)
     }
 
     var hitRectOnScreen: CGRect {
-        if isUnderwater && depth > 0.5 { return finHitRectOnScreen }
         let full = PetGeometry.hitPath(bob: pose.bob, facing: pose.facing, squashX: pose.squashX, squashY: pose.squashY)
             .boundingBox.offsetBy(dx: origin.x, dy: origin.y)
         let visible = full.intersection(currentScreen.visibleFrame.insetBy(dx: -2, dy: -2))
@@ -347,12 +310,12 @@ final class PetController: NSObject, NSMenuDelegate {
         let g = PetGeometry.self
         let minX = f.minX - g.bodyCenter.x + g.bodyHalfWidth + 4
         let maxX = f.maxX - g.bodyCenter.x - g.bodyHalfWidth - 4
-        let minY = f.minY - g.bodyBottom
+        let minY = f.minY - g.bodyBottom + 6      // feet 6pt above the edge: legs never crop
         let maxY = f.maxY - g.earTop - 2
         func cx(_ x: CGFloat) -> CGFloat { min(max(x, minX), maxX) }
         func cy(_ y: CGFloat) -> CGFloat { min(max(y, minY), maxY) }
         switch edge {
-        case .bottom: return CGPoint(x: cx(o.x), y: minY - depth * g.submergeDepth)
+        case .bottom: return CGPoint(x: cx(o.x), y: minY)
         case .top:    return CGPoint(x: cx(o.x), y: maxY)
         case .left:   return CGPoint(x: minX + 8 - (g.bodyHalfWidth * 2 - 16) * (1 - peek), y: cy(o.y))
         case .right:  return CGPoint(x: maxX - 8 + (g.bodyHalfWidth * 2 - 16) * (1 - peek), y: cy(o.y))
@@ -398,15 +361,10 @@ final class PetController: NSObject, NSMenuDelegate {
         d.set(Double(origin.x), forKey: Keys.x)
         d.set(Double(standingY), forKey: Keys.y)
         d.set(edge.rawValue, forKey: Keys.edge)
-        d.set(isUnderwater, forKey: Keys.underwater)
     }
 
     @objc private func screensChanged() {
-        guard state != .dragging else { return }
-        if isUnderwater {
-            setOrigin(edgeTarget(for: .bottom, in: currentScreen.visibleFrame, from: origin))
-            return
-        }
+        guard state != .dragging, !isMini else { return }
         let target = edgeTarget(for: edge, in: currentScreen.visibleFrame, from: origin)
         if hypot(target.x - origin.x, target.y - origin.y) < 2 { return }
         landFrom = origin; landTo = target; landDuration = 0.4
@@ -507,7 +465,7 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     private func welcomeBack() {
-        guard !isUnderwater else { return }
+        guard !isMini else { return }
         if state == .napping { wake() }
         welcomeUntil = time + 1.6
         pulse(amount: 0.12, duration: 0.4)
@@ -533,9 +491,9 @@ final class PetController: NSObject, NSMenuDelegate {
             if time < panelCooldownUntil { hoverDwell = 0 }
             if !launchPanel.isShown, overPet, hoverDwell > 0.3, time > panelCooldownUntil, !pressed {
                 switch state {
-                case .dragging, .landing, .diving, .surfacing: break
-                case .submerged, .periscope:
-                    surface(fast: true, openPanel: true)
+                case .dragging, .landing, .shrinking, .growing: break
+                case .strolling:
+                    grow(fast: true, openPanel: true)
                     hoverDwell = 0
                 default:
                     if (edge == .left || edge == .right) && peek < 0.9 { hoverDwell = 0.2; break }   // come out first
@@ -543,7 +501,7 @@ final class PetController: NSObject, NSMenuDelegate {
                     if state == .wandering { enterIdle() }
                     launchPanel.recents = switchBackApps
                     launchPanel.reload()
-                    launchPanel.show(near: petRect, edge: edge, screen: f)
+                    launchPanel.show(near: petRect, edge: edge, screen: f, centreX: bodyCenterOnScreen.x)
                     if !UserDefaults.standard.bool(forKey: Keys.pillHint) {
                         UserDefaults.standard.set(true, forKey: Keys.pillHint)
                         launchPanel.flash("click an app · + adds one · drop files on me", for: 6)
@@ -560,6 +518,10 @@ final class PetController: NSObject, NSMenuDelegate {
     private func updateState(dt: TimeInterval, mouse: CGPoint) {
         switch state {
         case .idle:
+            if mouseStillFor > 10 && keyIdle > 10 && !launchPanel.isShown && !pressed && !dropHovering && !selfTesting {
+                afkNap = true
+                startNap()
+            }
             if !launchPanel.isShown && !pressed && !typing {
                 nextDecisionIn -= dt
                 if nextDecisionIn <= 0 { decideNext() }
@@ -568,33 +530,33 @@ final class PetController: NSObject, NSMenuDelegate {
             updateCurious(dt: dt, mouse: mouse)
             // typing focus: after a long steady stretch of typing, get out of the way
             if edge == .bottom && hugEdges && typingFor > typingDiveAfter && !launchPanel.isShown && !pressed {
-                startDive(.typing)
+                startStroll(.typing)
             }
             // deep-work autopilot: 15 min in one app, hands on the mouse
             if edge == .bottom && hugEdges && time - frontSince > 900 && keyIdle > 30
                 && time - lastAutopilot > 600 && !launchPanel.isShown && !pressed && mouseStillFor < 30 {
                 lastAutopilot = time
-                startDive(.autopilot)
+                startStroll(.autopilot)
             }
             if let front = frontBundle, diveApps.contains(front), edge == .bottom, hugEdges, !launchPanel.isShown, !pressed {
-                startDive(.app)
+                startStroll(.app)
             }
         case .wandering:
             if launchPanel.isShown { enterIdle() } else { updateWander(dt: dt) }
         case .napping:
-            if stateTime > napDuration { wake() }
+            if afkNap {
+                if mouseStillFor < 0.5 || keyIdle < 1 { wake() }
+            } else if stateTime > napDuration { wake() }
         case .poked:
             if stateTime > 0.5 { enterIdle() }
         case .dragging:
             break
-        case .diving:
-            updateDive(dt: dt)
-        case .submerged:
-            updateSubmerged(dt: dt, mouse: mouse)
-        case .periscope:
-            updatePeriscope(dt: dt, mouse: mouse)
-        case .surfacing:
-            updateSurfacing(dt: dt, mouse: mouse)
+        case .shrinking:
+            updateShrink(dt: dt)
+        case .strolling:
+            updateStroll(dt: dt, mouse: mouse)
+        case .growing:
+            updateGrow(dt: dt, mouse: mouse)
         case .landing:
             let p = min(1, stateTime / landDuration)
             let e = 1 - pow(1 - p, 3)
@@ -683,228 +645,117 @@ final class PetController: NSObject, NSMenuDelegate {
         } else { curiousBuild = 0 }
     }
 
-    // MARK: - Under water
+    // MARK: - Stroll (idle "hide": shrink to half size and walk along the edge)
 
-    private func startDive(_ reason: DiveReason) {
-        guard edge == .bottom, hugEdges, !isUnderwater, state != .dragging else { return }
-        let f = currentScreen.visibleFrame
-        guard !isSeam(CGPoint(x: bodyCenterOnScreen.x, y: f.minY - 3), of: f) else { return }
+    private var isMini: Bool { state == .shrinking || state == .strolling || state == .growing }
+    private var miniScale: CGFloat { 1 - 0.45 * mini }
+
+    private func startStroll(_ reason: DiveReason) {
+        guard edge == .bottom || edge == .top || edge == .free, hugEdges || edge == .free, !isMini, state != .dragging else { return }
         diveReason = reason
         if !saidBrb, reason == .idle || reason == .typing || reason == .autopilot || reason == .app {
             saidBrb = true
             think("brb ~", for: 1.2)
         }
-        diveSkipHop = (reason == .drag)
-        diveBubbled = false
-        diveTurned = false
         if launchPanel.isShown { launchPanel.hide() }
         panelCooldownUntil = time + 1
         curiousT = -1
-        state = .diving
+        state = .shrinking
         stateTime = 0
     }
 
-    private func updateDive(dt: TimeInterval) {
-        let f = currentScreen.visibleFrame
-        let g = PetGeometry.self
-        let p = stateTime
-        let sinkStart: TimeInterval = diveSkipHop ? 0 : 0.15
-        if p < sinkStart {
-            depth = 0
-        } else if p < sinkStart + 0.55 {
-            let q = CGFloat((p - sinkStart) / 0.55)
-            depth = q * q * divePeak
-            if q > 0.4 && !diveBubbled { diveBubbled = true; spawnBubbles(5) }
-        } else if p < sinkStart + 1.25 {
-            depth = divePeak
-        } else if !diveTurned {
-            diveTurned = true
-            let minX = f.minX - g.bodyCenter.x + g.bodyHalfWidth + 4
-            let maxX = f.maxX - g.bodyCenter.x - g.bodyHalfWidth - 4
-            var o = origin
-            o.x = min(max(o.x + pose.facing * 60, minX), maxX)
-            setOrigin(o)
-            pose.facing = -pose.facing
-            tilt = 0
-        } else if p < sinkStart + 1.75 {
-            let q = CGFloat((p - sinkStart - 1.25) / 0.5)
-            depth = divePeak - (divePeak - 1) * (1 - pow(1 - q, 3))
-        } else {
-            depth = 1
-            beginSubmerged()
-        }
-        setOrigin(CGPoint(x: origin.x, y: f.minY - g.bodyBottom - depth * g.submergeDepth))
+    /// Shrink smoothly to the small size, then start walking.
+    private func updateShrink(dt: TimeInterval) {
+        let q = CGFloat(min(1, stateTime / 0.6))
+        mini = q < 0.5 ? 2 * q * q : 1 - pow(-2 * q + 2, 2) / 2      // ease in-out
+        if stateTime >= 0.6 { mini = 1; beginStroll() }
     }
 
-    private func beginSubmerged() {
+    private func beginStroll() {
         cruiseUntil = time + Double.random(in: 120...360)
         resurfaceAfter = Double.random(in: 20...25)
-        if let r = periscopeCheckIn { periscopeIn = Double.random(in: r) }
-        resumeSubmerged()
-        savePosition()
-    }
-
-    /// Back to cruising after a periscope peek, without restarting the cruise clock.
-    private func resumeSubmerged() {
-        state = .submerged
+        state = .strolling
         stateTime = 0
         cruiseDir = pose.facing
         cruiseSpeed = 0
         hitWall = false
-        if let r = periscopeCheckIn { periscopeIn = Double.random(in: r) }
         startLeg()
+        savePosition()
     }
 
     private func startLeg() {
-        legUntil = time + Double.random(in: 6...14)
-        targetSpeed = CGFloat.random(in: 14...18)
+        legUntil = time + Double.random(in: 4...10)
+        targetSpeed = CGFloat.random(in: 26...36)
         pauseUntil = 0
     }
 
-    private func updateSubmerged(dt: TimeInterval, mouse: CGPoint) {
+    private func updateStroll(dt: TimeInterval, mouse: CGPoint) {
         let f = currentScreen.visibleFrame
         let g = PetGeometry.self
         let dtf = CGFloat(dt)
-        let minX = f.minX - g.bodyCenter.x + g.bodyHalfWidth + 4
-        let maxX = f.maxX - g.bodyCenter.x - g.bodyHalfWidth - 4
+        let half = g.bodyHalfWidth * miniScale
+        let minX = f.minX - g.bodyCenter.x + half + 4
+        let maxX = f.maxX - g.bodyCenter.x - half - 4
 
-        // legs of slow cruising with lazy pauses and turns
         if time < pauseUntil {
             targetSpeed = 0
         } else if pauseUntil > 0 {
             pauseUntil = 0
-            if !hitWall && Double.random(in: 0..<1) < 0.65 { cruiseDir = -cruiseDir; turnUntil = time + 0.8 }
+            if !hitWall && Double.random(in: 0..<1) < 0.6 { cruiseDir = -cruiseDir }
             hitWall = false
             startLeg()
         } else if time > legUntil {
-            pauseUntil = time + Double.random(in: 2...5)
+            pauseUntil = time + Double.random(in: 1.5...4)
         }
-        cruiseSpeed = approach(cruiseSpeed, targetSpeed, rate: 1.2, dt: dtf)
+        cruiseSpeed = approach(cruiseSpeed, targetSpeed, rate: 3, dt: dtf)
         var o = origin
         o.x += cruiseDir * cruiseSpeed * dtf
         if o.x <= minX { o.x = minX; cruiseDir = 1; pauseUntil = time + 1; hitWall = true }
         else if o.x >= maxX { o.x = maxX; cruiseDir = -1; pauseUntil = time + 1; hitWall = true }
-        depth = 1 + 0.03 * sin(CGFloat(time) * 1.3)
-        o.y = f.minY - g.bodyBottom - depth * g.submergeDepth
         setOrigin(o)
-        if cruiseDir != pose.facing { pose.facing = cruiseDir }
+        if cruiseSpeed > 3 && cruiseDir != pose.facing { pose.facing = cruiseDir }
 
-        // periscope triggers
-        let finX = origin.x + g.bodyCenter.x
-        let cursorNear = abs(mouse.x - finX) < 200 && mouse.y < f.minY + 160 && mouse.y >= f.minY - 5
-            && cursorSpeed < 120 && mouseStillFor < 1.5
-        slowCursorNear = cursorNear ? slowCursorNear + dt : 0
-        if time - lastPeriscope > 12 && !typing {
-            if slowCursorNear > 0.35 { startPeriscope(); return }
-            if periscopeCheckIn != nil && mouseStillFor < 60 && time > shhUntil {
-                periscopeIn -= dt
-                if periscopeIn <= 0 { startPeriscope(); return }
-            }
-        }
+        let c = bodyCenterOnScreen
+        let near = hypot(mouse.x - c.x, mouse.y - c.y) < 200 && mouseStillFor < 1.5
+        if near && !typing { grow(fast: true, openPanel: false); return }
 
-        if firstRunSurfaceAt > 0 && time > firstRunSurfaceAt {
-            firstRunSurfaceAt = -1
-            surface(fast: true, openPanel: false)
-            thinkLater("hi! ◠‿◠", after: 0.7, for: 2.6)
-            thinkLater("rest your mouse on me", after: 3.6, for: 4)
-            thinkLater("drop files on me too", after: 8, for: 3.5)
-            return
-        }
-        // coming back up on its own
         let shh = time < shhUntil
         switchTimes.removeAll { time - $0 > 60 }
         switch diveReason {
         case .typing:
-            if keyIdle > resurfaceAfter && mouseStillFor < 10 && !shh { surface(fast: false, openPanel: false); return }
-            if switchTimes.count >= 3 && !shh { surface(fast: false, openPanel: false); return }
+            if keyIdle > resurfaceAfter && mouseStillFor < 10 && !shh { grow(fast: false, openPanel: false); return }
+            if switchTimes.count >= 3 && !shh { grow(fast: false, openPanel: false); return }
         case .autopilot:
-            if switchTimes.count >= 3 && !shh { surface(fast: false, openPanel: false); return }
+            if switchTimes.count >= 3 && !shh { grow(fast: false, openPanel: false); return }
         case .app:
-            if let front = frontBundle, !diveApps.contains(front), !shh { surface(fast: false, openPanel: false); return }
+            if let front = frontBundle, !diveApps.contains(front), !shh { grow(fast: false, openPanel: false); return }
         default:
             break
         }
         if time > cruiseUntil && mouseStillFor < 3 && time - lastSelfSurface > selfSurfaceGap && !typing && !shh {
-            surface(fast: false, openPanel: false)
+            grow(fast: false, openPanel: false)
         }
     }
 
-    private func startPeriscope() {
-        state = .periscope
-        stateTime = 0
-        periscopeHold = Double.random(in: 1...2.5)
-        periscopeBlinked = false
-        lastPeriscope = time
-        cruiseSpeed = 0
-        spawnBubbles(1)
-    }
-
-    private func updatePeriscope(dt: TimeInterval, mouse: CGPoint) {
-        let f = currentScreen.visibleFrame
-        let g = PetGeometry.self
-        let up = 1 - g.periscopeFraction
-        if stateTime < 0.35 {
-            let q = CGFloat(stateTime / 0.35)
-            depth = 1 - up * (1 - pow(1 - q, 3))
-        } else if stateTime < 0.35 + periscopeHold {
-            depth = g.periscopeFraction
-            if stateTime > 0.6 && !periscopeBlinked { periscopeBlinked = true; blinkT = 0 }
-        } else if stateTime < 0.35 + periscopeHold + 0.4 {
-            let q = CGFloat((stateTime - 0.35 - periscopeHold) / 0.4)
-            depth = g.periscopeFraction + up * q * q
-        } else {
-            depth = 1
-            resumeSubmerged()
-        }
-        setOrigin(CGPoint(x: origin.x, y: f.minY - g.bodyBottom - depth * g.submergeDepth))
-        // head + fin count as the shark while peeking
-        let headRect = CGRect(x: origin.x + 40, y: f.minY - 2, width: 90, height: 60)
-        if headRect.contains(mouse) && cursorSpeed < 200 && stateTime > 0.35 {
-            surface(fast: true, openPanel: true)
-        }
-    }
-
-    private func surface(fast: Bool, openPanel: Bool) {
-        guard isUnderwater, state != .surfacing else { return }
-        surfaceFrom = origin.y
-        surfaceFast = fast
+    private func grow(fast: Bool, openPanel: Bool) {
+        guard isMini, state != .growing else { return }
+        surfaceFrom = mini
         surfaceOpenPanel = openPanel
-        surfaceDropped = false
-        surfaceOvershoot = 0.08
-        surfaceDuration = fast ? 0.6 : 1.0
-        if cursorSpeed > 900 { surfaceDuration = 0.4; surfaceOvershoot = 0.2; think("!", for: 1) }
+        surfaceDuration = fast ? 0.45 : 0.8
         if !fast { lastSelfSurface = time }
-        state = .surfacing
+        cruiseSpeed = 0
+        state = .growing
         stateTime = 0
     }
 
-    private func updateSurfacing(dt: TimeInterval, mouse: CGPoint) {
-        let f = currentScreen.visibleFrame
-        let g = PetGeometry.self
-        let to = f.minY - g.bodyBottom
+    private func updateGrow(dt: TimeInterval, mouse: CGPoint) {
         let p = CGFloat(min(1, stateTime / surfaceDuration))
-        let k: CGFloat
-        if surfaceFast {
-            if p < 0.7 {
-                let q = p / 0.7
-                k = (1 - pow(1 - q, 3)) * (1 + surfaceOvershoot)
-            } else {
-                let q = (p - 0.7) / 0.3
-                k = (1 + surfaceOvershoot) - surfaceOvershoot * q * q
-            }
-        } else {
-            k = 1 - pow(1 - p, 3)
-        }
-        let y = surfaceFrom + (to - surfaceFrom) * k
-        setOrigin(CGPoint(x: origin.x, y: y))
-        depth = max(0, min(1.1, (to - y) / g.submergeDepth))
-        if p > 0.5 && !surfaceDropped { surfaceDropped = true }
+        let e = 1 - pow(1 - p, 3)
+        mini = surfaceFrom * (1 - e)
         if p >= 1 {
-            setOrigin(CGPoint(x: origin.x, y: to))
-            depth = 0
-            tilt = 0
+            mini = 0
             enterIdle()
-            pulse(amount: -0.12, duration: 0.3)
+            pulse(amount: 0.08, duration: 0.3)
             savePosition()
             typingFor = 0
             typingDiveAfter = Double.random(in: 60...90)
@@ -945,8 +796,11 @@ final class PetController: NSObject, NSMenuDelegate {
         }
         pose.thoughtAlpha = approach(pose.thoughtAlpha, time < thoughtUntil ? 1 : 0, rate: 6, dt: dtf)
 
+        // listening: sound bars on the screen while you speak (only during calls)
+        pose.listening = approach(pose.listening, (mic.speaking && !isMini) ? 1 : 0, rate: 8, dt: dtf)
+
         // music: the disc keeps turning while something plays; a note now and then
-        let playing = music.isPlaying && !isUnderwater
+        let playing = music.isPlaying
         pose.music = approach(pose.music, playing ? 1 : 0, rate: 3, dt: dtf)
         if playing {
             pose.discAngle += dtf * 3.2
@@ -1010,7 +864,6 @@ final class PetController: NSObject, NSMenuDelegate {
         if napping { earTarget = 0.05 }
         else if happy || time < finFlickUntil { earTarget = 1 }
         else if state == .dragging { earTarget = 0.2 }
-        else if isUnderwater { earTarget = 0.5 }
         else if curious { earTarget = 0.8 }
         pose.earPerk = approach(pose.earPerk, earTarget, rate: 6, dt: dtf)
 
@@ -1065,13 +918,12 @@ final class PetController: NSObject, NSMenuDelegate {
             bob = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : max(0, sin(p * .pi)) * 3
         case .dragging:
             sy = 1.06; sx = 0.96
-        case .diving:
-            if !diveSkipHop && stateTime < 0.15 { bob = 8 * sin(CGFloat(stateTime / 0.15) * .pi) }
-        case .submerged, .periscope, .surfacing, .landing:
+        case .shrinking, .strolling, .growing, .landing:
             bob = 0
         }
-        sx *= 1 + 0.32 * pose.flop
-        sy *= 1 - 0.38 * pose.flop
+        // small while strolling (anchored at the feet); the nap pose is drawn lying down by the view
+        sx *= miniScale
+        sy *= miniScale
         if pulseT >= 0 {
             pulseT += dt
             let q = CGFloat(pulseT / pulseDuration)
@@ -1103,9 +955,7 @@ final class PetController: NSObject, NSMenuDelegate {
             lastDragX = origin.x
             dragVelocity = approach(dragVelocity, vx, rate: 10, dt: dtf)
             tilt = approach(tilt, max(-0.32, min(0.32, -dragVelocity * 0.00045)), rate: 8, dt: dtf)
-        } else if state == .submerged {
-            tilt = approach(tilt, 0, rate: 3, dt: dtf)
-        } else if state != .surfacing {
+        } else {
             tilt = approach(tilt, 0, rate: 8, dt: dtf)
         }
         curiousTilt = approach(curiousTilt, curious ? -0.14 * (dx > 0 ? 1 : -1) : 0, rate: 6, dt: dtf)
@@ -1115,10 +965,11 @@ final class PetController: NSObject, NSMenuDelegate {
         var shadowTarget: CGFloat = 0
         if onFloor {
             if state == .landing { shadowTarget = CGFloat(min(1, stateTime / landDuration)) }
-            else if state != .dragging && !isUnderwater { shadowTarget = 1 }
+            else if state != .dragging { shadowTarget = 1 }
         }
         pose.shadow = approach(pose.shadow, shadowTarget, rate: 6, dt: dtf)
-        pose.submerged = 0   // no waterline drawing; the screen-edge clip (applyScreenClip) hides the tucked part
+        pose.submerged = 0
+        pose.walk = (state == .strolling && cruiseSpeed > 3) ? cruiseDir : 0
         pose.waterline = currentScreen.visibleFrame.minY - origin.y
         pose.ceiling = currentScreen.visibleFrame.maxY - origin.y
         pose.zzz = approach(pose.zzz, (napping && !yawning) ? 1 : 0, rate: 2.5, dt: dtf)
@@ -1153,7 +1004,7 @@ final class PetController: NSObject, NSMenuDelegate {
         if userAway { napChance = 0.7 }
         if r < napChance { startNap(); return }
         if !userBusy && !reduceMotion {
-            if hugEdges && edge == .bottom && r < napChance + idleDiveChance { startDive(.idle); return }
+            if hugEdges && edge == .bottom && r < napChance + idleDiveChance { startStroll(.idle); return }
             if hugEdges && edge != .free && r < napChance + idleDiveChance + 0.3 { startWander(); return }
         }
         if Bool.random() { pulse(amount: 0.08, duration: 0.35) } else { finFlickUntil = time + 0.35 }
@@ -1214,6 +1065,7 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     private func wake() {
+        afkNap = false
         lastNapEnded = time
         enterIdle()
         pulse(amount: 0.14, duration: 0.4)
@@ -1240,17 +1092,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     private func release() {
         let f = currentScreen.visibleFrame
-        depth = 0
-        if hugEdges && origin.y + PetGeometry.bodyBottom < f.minY - 10
-            && !isSeam(CGPoint(x: bodyCenterOnScreen.x, y: f.minY - 3), of: f) {
-            // dropped below the edge: dive
-            edge = .bottom
-            let x = edgeTarget(for: .bottom, in: f, from: origin).x
-            setOrigin(CGPoint(x: x, y: f.minY - PetGeometry.bodyBottom))
-            state = .idle
-            startDive(.drag)
-            return
-        }
+        mini = 0
         // stay wherever it was dropped unless it's close to an edge; then tuck into that edge
         let c = bodyCenterOnScreen
         let edgeDistance = min(c.y - f.minY, f.maxY - c.y, c.x - f.minX, f.maxX - c.x)
@@ -1320,7 +1162,7 @@ final class PetController: NSObject, NSMenuDelegate {
         dropHovering = inside
         if inside {
             if state == .napping { wake() }
-            if isUnderwater { surface(fast: true, openPanel: false) }
+            if isMini { grow(fast: true, openPanel: false) }
             think("give?", for: 3)
         } else {
             thoughtUntil = 0
@@ -1387,7 +1229,7 @@ final class PetController: NSObject, NSMenuDelegate {
         pressOrigin = origin
         lastDragX = origin.x
         dragVelocity = 0
-        if state == .submerged || state == .periscope { surface(fast: true, openPanel: false) }
+        if state == .strolling { grow(fast: true, openPanel: false) }
     }
 
     func petMouseDragged(to p: CGPoint) {
@@ -1395,9 +1237,9 @@ final class PetController: NSObject, NSMenuDelegate {
         if state != .dragging {
             if hypot(p.x - pressStart.x, p.y - pressStart.y) < 4 { return }
             if state == .napping { lastNapEnded = time }
+            mini = 0
             state = .dragging
             stateTime = 0
-            depth = 0
             curiousT = -1
             if launchPanel.isShown { launchPanel.hide() }
             panelCooldownUntil = time + 0.6
@@ -1409,8 +1251,22 @@ final class PetController: NSObject, NSMenuDelegate {
         guard pressed else { return }
         pressed = false
         if state == .dragging { release() }
-        else if state == .surfacing || state == .diving { return }
-        else { poke() }
+        else if state == .growing || state == .shrinking { return }
+        else {
+            let isDouble = time - lastClickAt < 0.35
+            lastClickAt = time
+            if isDouble { switchToPreviousApp() } else { poke() }
+        }
+    }
+
+    /// Double-click: bring back the app you were using before the current one.
+    private func switchToPreviousApp() {
+        guard let url = switchBackApps.first else { think("no other app yet", for: 1.6); return }
+        let name = url.deletingPathExtension().lastPathComponent
+        think("→ \(name)", for: 1.4)
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, _ in }
+        state = .poked; stateTime = 0
+        pokeCount = 0
     }
 
     // MARK: - Menu
@@ -1434,7 +1290,7 @@ final class PetController: NSObject, NSMenuDelegate {
         menu.addItem(withTitle: n == 0 ? "Open stash (empty — drop things on the shark)" : "Open stash (\(n))",
                      action: #selector(openStash), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Hide for a bit (peek out now and then)", action: #selector(swimNow), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Go for a stroll (small)", action: #selector(swimNow), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Nap now", action: #selector(napNow), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Come here", action: #selector(comeHere), keyEquivalent: "").target = self
         menu.addItem(withTitle: time < shhUntil ? "Shh for an hour ✓ (tap to end)" : "Shh for an hour",
@@ -1549,12 +1405,12 @@ final class PetController: NSObject, NSMenuDelegate {
     @objc private func shhHour() {
         if time < shhUntil {
             shhUntil = 0
-            if isUnderwater { surface(fast: false, openPanel: false) }
+            if isMini { grow(fast: false, openPanel: false) }
             return
         }
         shhUntil = time + 3600
         if launchPanel.isShown { launchPanel.hide() }
-        if edge == .bottom && hugEdges { startDive(.shh) } else if state == .idle { startNap() }
+        if edge == .bottom && hugEdges { startStroll(.shh) } else if state == .idle { startNap() }
     }
 
     @objc private func toggleDiveApp(_ sender: NSMenuItem) {
@@ -1564,28 +1420,26 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func swimNow() {
-        if edge != .bottom || !hugEdges {
-            hugEdges = true
-            UserDefaults.standard.set(true, forKey: Keys.hugEdges)
+        if edge == .left || edge == .right {
             edge = .bottom
-            depth = 0
+            mini = 0
             setOrigin(edgeTarget(for: .bottom, in: currentScreen.visibleFrame, from: origin))
         }
         if state == .napping { wake() }
-        startDive(.menu)
+        startStroll(.menu)
     }
 
     @objc private func napNow() {
         if launchPanel.isShown { launchPanel.hide() }
-        if isUnderwater { surface(fast: false, openPanel: false); return }
+        if isMini { grow(fast: false, openPanel: false); return }
         startNap()
     }
 
     @objc func comeHere() {
         let mouse = NSEvent.mouseLocation
-        if isUnderwater {
+        if isMini {
             pendingComeHere = mouse
-            surface(fast: true, openPanel: false)
+            grow(fast: true, openPanel: false)
             return
         }
         glide(to: mouse)
@@ -1594,7 +1448,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private func glide(to mouse: CGPoint) {
         let f = screen(containing: mouse).visibleFrame
         landFrom = origin
-        depth = 0
+        mini = 0
         edge = hugEdges ? nearestEdge(in: f, at: mouse) : .free
         if edge == .left { pose.facing = 1 } else if edge == .right { pose.facing = -1 }
         peek = 1
@@ -1613,7 +1467,7 @@ final class PetController: NSObject, NSMenuDelegate {
         if hugEdges {
             release()
         } else {
-            if isUnderwater { depth = 0; setOrigin(edgeTarget(for: .bottom, in: currentScreen.visibleFrame, from: origin)); enterIdle() }
+            if isMini { grow(fast: true, openPanel: false) }
             edge = .free
             savePosition()
         }
@@ -1665,28 +1519,23 @@ final class PetController: NSObject, NSMenuDelegate {
             }
         }
         func expect(_ cond: @autoclosure () -> Bool, _ msg: String) {
-            if !cond() { failures.append("\(msg) (state=\(state), depth=\(depth), origin=\(origin))") }
+            if !cond() { failures.append("\(msg) (state=\(state), mini=\(mini), origin=\(origin))") }
         }
         let f = currentScreen.visibleFrame
         selfTesting = true
-        hugEdges = true; edge = .bottom; depth = 0
-        firstRunSurfaceAt = -1
+        hugEdges = true; edge = .bottom; mini = 0
         pendingThoughts.removeAll()
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0)))
         enterIdle()
         print("selftest: screen", f)
 
-        startDive(.menu); step(3)
-        expect(state == .submerged, "dive should end submerged")
-        expect(abs(depth - 1) < 0.05, "cruising depth ~1")
-        expect(origin.y + PetGeometry.earTop - 10 < f.minY + 30, "only the fin above the edge")
-        startPeriscope(); step(0.5)
-        expect(state == .periscope, "periscope entered")
-        step(4)
-        expect(state == .submerged, "periscope returns to cruising")
-        surface(fast: true, openPanel: false); step(2)
-        expect(state == .idle, "surface ends idle")
-        expect(abs(origin.y - (f.minY - PetGeometry.bodyBottom)) < 0.5, "standing on the edge after surfacing")
+        startStroll(.menu); step(3)
+        expect(state == .strolling, "stroll should end small and walking")
+        expect(abs(mini - 1) < 0.05, "small while strolling")
+        step(6)
+        expect(state == .strolling || state == .growing || state == .idle, "strolling keeps a sane state")
+        grow(fast: true, openPanel: false); step(2)
+        expect(state == .idle && mini == 0, "grow ends idle at full size")
 
         startNap(); step(2); expect(state == .napping, "napping")
         expect(pose.flop > 0.5, "flopped while napping")
@@ -1695,16 +1544,15 @@ final class PetController: NSObject, NSMenuDelegate {
         poke(); step(1); expect(state == .idle, "poke ends idle")
         for _ in 0..<4 { poke() }; step(1); expect(state == .idle, "dizzy pokes end idle")
 
-        // drag it below the edge: should dive
         let c = bodyCenterOnScreen
-        petMouseDown(at: c); petMouseDragged(to: CGPoint(x: c.x + 60, y: c.y - 90)); step(0.2)
+        petMouseDown(at: c); petMouseDragged(to: CGPoint(x: c.x + 60, y: c.y + 30)); step(0.2)
         expect(state == .dragging, "dragging")
-        petMouseUp(at: CGPoint(x: c.x + 60, y: c.y - 90)); step(3)
-        expect(state == .submerged, "drop below the edge dives")
+        petMouseUp(at: CGPoint(x: c.x + 60, y: c.y + 30)); step(2)
+        expect(state == .idle && edge == .bottom, "drop near the bottom stays on the bottom edge")
 
-        // come here from under water surfaces first, then glides
+        startStroll(.menu); step(2)
         comeHere(); step(4)
-        expect(state == .idle, "come here from under water ends idle")
+        expect(state == .idle && mini == 0, "come here while small ends idle at full size")
 
         // drag to the left edge and back to the bottom
         petMouseDown(at: bodyCenterOnScreen)
@@ -1725,13 +1573,14 @@ final class PetController: NSObject, NSMenuDelegate {
         // a long unattended stretch: random decisions, no crash, ends in a sane state
         var seen: Set<String> = []
         for _ in 0..<60 { step(10); seen.insert("\(state)") }
-        expect([State.idle, .napping, .submerged, .periscope, .wandering, .diving, .surfacing].contains(state), "sane state after 10 min")
+        expect([State.idle, .napping, .strolling, .wandering, .shrinking, .growing].contains(state), "sane state after 10 min")
         print("selftest: states seen in 10 min:", seen.sorted())
         toggleHug(); step(2); toggleHug(); step(3)
         expect(state != .dragging, "hug toggle round trip")
-        edge = .bottom; depth = 0
+        if isMini { grow(fast: true, openPanel: false); step(1) }
+        edge = .bottom; mini = 0
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0))); enterIdle(); step(0.5)
-        shhHour(); step(4); expect(isUnderwater, "shh dives"); shhHour(); step(3); expect(!isUnderwater, "shh off surfaces")
+        shhHour(); step(4); expect(isMini, "shh strolls small"); shhHour(); step(3); expect(!isMini, "shh off grows back")
 
         if failures.isEmpty { print("selftest: OK") } else { print("selftest: FAILED\n - " + failures.joined(separator: "\n - ")) }
         return failures.isEmpty

@@ -40,6 +40,8 @@ struct PetPose {
     var finSway: CGFloat = 0         // sideways lean of the dorsal fin (tail-beat)
     var wake: CGFloat = 0            // cruise speed 0...1
     var smile: CGFloat = 0           // eases the mouth between neutral and happy
+    var walk: CGFloat = 0            // -1 walking left, +1 walking right, 0 standing (picks the running rows)
+    var listening: CGFloat = 0       // 1 while the user is speaking into the mic
     var music: CGFloat = 0           // 1 while music is playing (draw the little spinning disc)
     var discAngle: CGFloat = 0       // radians, keeps turning while music plays
     var ceiling: CGFloat = 10000     // view-space y of the top of the screen (nothing drawn above it)
@@ -102,6 +104,8 @@ enum PetGeometry {
     static let bodyCenter = CGPoint(x: 85, y: 74)   // unchanged: the controller's grab/dive thresholds hang off this
     static let bodyHalfWidth: CGFloat = 51
     static let bodyHalfHeight: CGFloat = 46          // bodyBottom 28 … bodyTop 120
+    /// Half the drawn character's height (feet to the top of the cloud), used to roll it over for the nap.
+    static var characterHalfHeight: CGFloat { (bodyHalfHeight * 2 + earHeight) / 2 }
     static let earHeight: CGFloat = 28               // the cloud head rises to earTop = 148
     /// Area (view coords) that counts as "the pet" for hover and clicks.
     static let hitRect = CGRect(x: 30, y: 24, width: 110, height: 128)

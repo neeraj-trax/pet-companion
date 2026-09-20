@@ -52,26 +52,32 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 | `ShortcutStore.swift` | pinned app list, JSON | |
 | `StashStore.swift` | saving dropped files/images/links/text | files copied off the main thread |
 | `MusicWatcher.swift` | Spotify / Apple Music now-playing via distributed notifications | |
+| `MicWatcher.swift` | "user is speaking" during calls (CoreAudio running-somewhere + AVAudioEngine RMS) | |
 | `UI.swift` | shared font/colour helpers | |
 
 ## How it works (the essentials)
 
 **Loop.** `PetController.tick()` runs on a Timer whose rate adapts (60 fps while moving, 15 fps idle, 2 s when hidden). Each tick: read the mouse, detect typing (`CGEventSource.secondsSinceLastEventType`, no permission), detect fullscreen apps (`CGWindowListCopyWindowInfo`), update hover, update the state machine, update the animation values into `pose`, hand `pose` to the view, tick the ring, apply the screen-edge clip mask.
 
-**States** (`PetController.State`): `idle, wandering, napping, poked, dragging, landing, diving, submerged, periscope, surfacing`. The last four are the "hide below the bottom edge" family (names are from the shark era; the water visuals are gone, only the motion remains): dive = sink until only the head shows, submerged = cruise slowly along the edge, periscope = brief peek, surfacing = come back up. Side edges use a simpler `peek` value (tucked with a sliver showing, brief peeks, out when the cursor is near). `edge` is `.bottom/.top/.left/.right/.free`; `.free` means "stays where dropped" (drops more than 150 pt from any edge).
+**States** (`PetController.State`): `idle, wandering, napping, poked, dragging, landing, shrinking, strolling, growing`. The last three are the "get out of the way" family: it shrinks to 55 % over 0.6 s (`mini` 0→1, applied as squash anchored at the feet), then strolls left/right along its edge with the running sprite rows (legs of 4–10 s, pauses, turns after a stop, never a jump), and grows back when the cursor comes within 200 pt, on hover (ring opens after growing), or when the trigger ends. Side edges use a `peek` value instead (tucked with a sliver showing, brief peeks, out when the cursor is near). `edge` is `.bottom/.top/.left/.right/.free`; `.free` means "stays where dropped" (drops more than 150 pt from any edge). Nap: after 10 s with no mouse and no keyboard it lies down (`flop` → the view rolls the sprite 90° onto its back) and wakes on any input; other naps are random and timed. Variable names `diveReason`, `cruise*`, `surfaceFrom` are leftovers from the shark's dive; they now describe the stroll.
 
-**Triggers that hide it:** idle chance (mood), steady typing for 60–90 s, 15 min in one app, "Shh for an hour", "Dive while <app> is in front", fullscreen app (window is ordered out entirely). It never surfaces on its own while the mouse is still.
+**Triggers that make it small:** idle chance (mood), steady typing for 60–90 s, 15 min in one app, "Shh for an hour", "Dive while <app> is in front", fullscreen app (window is ordered out entirely). It never grows back on its own while the mouse is still.
+
+**Interactions:** click = poke (jump). Double-click = switch to the app you used before the current one. Drop = stash. Right-click = menu.
+
+**Expressions:** short texts (`pose.thought`) are drawn on the character's TV face by the view (panel colours sampled from the atlas per skin), not in a bubble. `pose.listening` draws sound bars there while the user speaks. `MicWatcher` only opens the mic while some other app already has it open (a call), measures RMS with an adaptive noise floor, and needs Microphone permission once (`NSMicrophoneUsageDescription` is in Info.plist).
 
 **Hover/click.** The pet window is click-through unless `petContains(mouse)` (hit path from `PetGeometry.hitPath`). Resting the cursor ~0.3 s on the body opens the ring; the ring window is likewise click-through except on chips. `updateHover` owns this; `RingPanel.keepsOpen(for:)` decides when the ring stays open.
 
 **Ring fitting.** `RingPanel.show()` → `bestFit()` searches rotation × arc width × radius so no chip is off-screen or over the pet, then sizes its own window. Magnification is a continuous Dock layout in `RingView.update`.
 
-**Pose contract.** The controller only writes `PetPose` fields (`bob, squashX/Y, tilt, facing, eyeOpen, eyeStyle, look, earPerk, mouth, chomp, smile, flop, blush, thought/thoughtAlpha, particles, music, discAngle, waterline, ceiling, coat …`). The view maps them to sprite rows (see `VISUALS-HANDOFF.md` for the table). Adding a new behaviour usually means: a state or timer in the controller → a pose field → a mapping in the view.
+**Pose contract.** The controller only writes `PetPose` fields (`bob, squashX/Y, tilt, facing, eyeOpen, eyeStyle, look, earPerk, mouth, chomp, smile, flop, blush, thought/thoughtAlpha, particles, walk, listening, music, discAngle, ceiling, coat …`). `submerged`/`waterline` are always 0 now (water era); the screen-edge clipping is a layer mask set by `applyScreenClip()`. The view maps them to sprite rows (see `VISUALS-HANDOFF.md` for the table). Adding a new behaviour usually means: a state or timer in the controller → a pose field → a mapping in the view.
 
 **Mood.** `Mood` (Shy/Normal/Chatty) + quiet hours + Shh scale thought frequency, peeks and hide chance. Defaults: Normal, quiet hours off.
 
 ## Ownership (keep this split when two agents work at once)
 
+- Since 2026-09-21 (late) one agent owns everything; the split below is only needed if two agents work at once.
 - Functionality agent: everything except `PetView.swift`, `Sprite.swift`, and the drawing-related constants / `hitPath` in `PetPose.swift`.
 - Visuals agent: `PetView.swift`, `Sprite.swift`, drawing constants in `PetPose.swift`. It must not rename `PetPose` fields.
 - Never build while the other agent is mid-edit; one finishes, builds, then the other starts.
@@ -85,6 +91,8 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 
 - Sprite rows with no trigger yet: `failed`, `running` (laptop), `review`. Wire a pose signal in the controller, then map it in the view.
 - Music: the player chip works; the "spinning disc" visual for `pose.music`/`discAngle` is not drawn yet.
+- The lying-down nap is the closed-eyes idle frame rotated 90°; a real lying sprite would look better.
+- Listening (mic) is untested on a real call in this environment; thresholds are in `MicWatcher.ingest`.
 - Recents in the ring are disabled (`RingConfig.maxRecents = 0`) at the owner's request; the code path still works.
 - Drops from Chrome/Photos that arrive as file promises are not received (only real files, images, links, text).
 - Multi-monitor: edge logic uses the screen under the character; seams between monitors are avoided but not heavily tested.
