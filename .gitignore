@@ -1,0 +1,6 @@
+.build/
+build/
+*.xcodeproj
+.DS_Store
+# sprite sheet is for personal use only; not shipped
+Assets/pet-atlas.webp

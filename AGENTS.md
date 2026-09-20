@@ -1,0 +1,93 @@
+# Pet — guide for agents
+
+Read this first. It tells you what the app is, how the code is laid out, what each file owns, how to build and check it without a screen, and what is unfinished. You should not need to read every file to start.
+
+## What it is
+
+A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to a **Stash** folder. It hides at the screen edge when you are busy and peeks out now and then. Music playing in Spotify/Apple Music shows up as a player chip. No permissions are required (play/pause asks once for Automation on first use).
+
+Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget, never distracting during work.
+
+- Native Swift + AppKit, no Xcode project, no dependencies. `swift build` compiles it.
+- Character: a sprite-sheet cloud-headed robot (`Assets/pet-atlas.webp`, personal use only, not in git; see "Assets"). The old vector shark drawing remains as a fallback when the atlas is missing.
+- Two agents have worked on this in parallel with a file split (see "Ownership"). Keep that split.
+
+## Build, run, verify
+
+```bash
+swift build -c release                 # compile
+./build-app.sh                         # compile + self-test + bundle → build/Pet.app
+pkill -x Pet; open build/Pet.app       # relaunch
+```
+
+Headless checks (there is no screenshot access for agents; use these):
+
+```bash
+.build/release/Pet --selftest                          # drives the state machine, prints selftest: OK/FAILED
+.build/release/Pet --render-poses build/poses.png      # contact sheet of the character's states
+.build/release/Pet --render-ring-live build/ring.png   # ring with magnification, light + dark
+.build/release/Pet --render-ring-appear build/a.png    # frames of the ring pop-in
+.build/release/Pet --render-ring-corners build/c.png   # ring fitted in screen corners/edges
+.build/release/Pet --render-icon build/icon.png        # app icon
+```
+
+Then Read the PNG. `build-app.sh` refuses to bundle if the self-test fails. The self-test can flake only if the real mouse is over the pet; rerun.
+
+Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~/Library/Application Support/Pet/Stash/` (dropped things), `defaults` domain `in.vellabs.pet` (position, edge, skin, mood, toggles).
+
+## Code map (Sources/Pet)
+
+| File | Owns | Notes |
+| --- | --- | --- |
+| `main.swift` | entry point, debug CLI flags | `--selftest`, `--render-*` |
+| `AppDelegate.swift` | menu-bar fin icon, reopen → "Come here" | tiny |
+| `PetWindow.swift` | the transparent always-on-top non-activating panel | `ignoresMouseEvents` is toggled per tick by the controller |
+| `PetController.swift` | **the brain**: state machine, hover/drag/poke, edge snapping, hiding, typing/fullscreen detection, menu, self-test | ~1700 lines; sections are marked with `// MARK:` |
+| `PetPose.swift` | `PetPose` = everything the drawing gets per frame; `PetGeometry` constants; `Coat` skins | the contract between controller and view |
+| `PetView.swift` | draws the character from `PetPose`; drag-and-drop target; pose renderers | visuals agent's file |
+| `Sprite.swift` | atlas metadata, playback rules, per-skin recolouring | visuals agent's file |
+| `RingPanel.swift` | the app ring: `RingPanel` (window, fitting, show/hide) + `RingView` (drawing, magnification, clicks) + `RingConfig` (all tunable numbers) | |
+| `RingLayout.swift` | ring geometry math + `RingPreview` debug renderers | |
+| `ManageAppsWindow.swift` | "Manage apps…" window: add / remove / reorder | |
+| `ShortcutStore.swift` | pinned app list, JSON | |
+| `StashStore.swift` | saving dropped files/images/links/text | files copied off the main thread |
+| `MusicWatcher.swift` | Spotify / Apple Music now-playing via distributed notifications | |
+| `UI.swift` | shared font/colour helpers | |
+
+## How it works (the essentials)
+
+**Loop.** `PetController.tick()` runs on a Timer whose rate adapts (60 fps while moving, 15 fps idle, 2 s when hidden). Each tick: read the mouse, detect typing (`CGEventSource.secondsSinceLastEventType`, no permission), detect fullscreen apps (`CGWindowListCopyWindowInfo`), update hover, update the state machine, update the animation values into `pose`, hand `pose` to the view, tick the ring, apply the screen-edge clip mask.
+
+**States** (`PetController.State`): `idle, wandering, napping, poked, dragging, landing, diving, submerged, periscope, surfacing`. The last four are the "hide below the bottom edge" family (names are from the shark era; the water visuals are gone, only the motion remains): dive = sink until only the head shows, submerged = cruise slowly along the edge, periscope = brief peek, surfacing = come back up. Side edges use a simpler `peek` value (tucked with a sliver showing, brief peeks, out when the cursor is near). `edge` is `.bottom/.top/.left/.right/.free`; `.free` means "stays where dropped" (drops more than 150 pt from any edge).
+
+**Triggers that hide it:** idle chance (mood), steady typing for 60–90 s, 15 min in one app, "Shh for an hour", "Dive while <app> is in front", fullscreen app (window is ordered out entirely). It never surfaces on its own while the mouse is still.
+
+**Hover/click.** The pet window is click-through unless `petContains(mouse)` (hit path from `PetGeometry.hitPath`). Resting the cursor ~0.3 s on the body opens the ring; the ring window is likewise click-through except on chips. `updateHover` owns this; `RingPanel.keepsOpen(for:)` decides when the ring stays open.
+
+**Ring fitting.** `RingPanel.show()` → `bestFit()` searches rotation × arc width × radius so no chip is off-screen or over the pet, then sizes its own window. Magnification is a continuous Dock layout in `RingView.update`.
+
+**Pose contract.** The controller only writes `PetPose` fields (`bob, squashX/Y, tilt, facing, eyeOpen, eyeStyle, look, earPerk, mouth, chomp, smile, flop, blush, thought/thoughtAlpha, particles, music, discAngle, waterline, ceiling, coat …`). The view maps them to sprite rows (see `VISUALS-HANDOFF.md` for the table). Adding a new behaviour usually means: a state or timer in the controller → a pose field → a mapping in the view.
+
+**Mood.** `Mood` (Shy/Normal/Chatty) + quiet hours + Shh scale thought frequency, peeks and hide chance. Defaults: Normal, quiet hours off.
+
+## Ownership (keep this split when two agents work at once)
+
+- Functionality agent: everything except `PetView.swift`, `Sprite.swift`, and the drawing-related constants / `hitPath` in `PetPose.swift`.
+- Visuals agent: `PetView.swift`, `Sprite.swift`, drawing constants in `PetPose.swift`. It must not rename `PetPose` fields.
+- Never build while the other agent is mid-edit; one finishes, builds, then the other starts.
+- Briefs: `VISUALS-BRIEF.md` (what the visuals agent was asked), `VISUALS-HANDOFF.md` (what it changed and how sprite rows map to pose fields).
+
+## Assets
+
+`Assets/pet-atlas.webp` is the Codex pet sprite sheet, used for the owner's own desktop only. It is **not committed** (see `.gitignore`); `build-app.sh` copies it into the app bundle when present. Without it the app draws the fallback vector character. `PET_ATLAS=<path>` overrides the location.
+
+## Known gaps / ideas not built
+
+- Sprite rows with no trigger yet: `failed`, `running` (laptop), `review`. Wire a pose signal in the controller, then map it in the view.
+- Music: the player chip works; the "spinning disc" visual for `pose.music`/`discAngle` is not drawn yet.
+- Recents in the ring are disabled (`RingConfig.maxRecents = 0`) at the owner's request; the code path still works.
+- Drops from Chrome/Photos that arrive as file promises are not received (only real files, images, links, text).
+- Multi-monitor: edge logic uses the screen under the character; seams between monitors are avoided but not heavily tested.
+- Reduce Motion: wander/hop are suppressed; the ring animation is not yet reduced.
+- Ideas from `DESIGN.md` still open: size options, accessories, naming the pet, cloud/AI job status, "hold a file over the pet then drop on an app".
+- `DESIGN.md` / `PLAN.md` describe the shark-era design; the state names and the hide behaviour come from there.
