@@ -134,8 +134,6 @@ final class PetController: NSObject, NSMenuDelegate {
     private var surfaceDuration: TimeInterval = 0.6
     private var surfaceOpenPanel = false
     private var pendingComeHere: CGPoint? = nil
-    private var fullscreenHidden = false
-    private var fullscreenCheckIn: TimeInterval = 1
 
     // apps
     private var recentApps: [URL] = []
@@ -197,6 +195,7 @@ final class PetController: NSObject, NSMenuDelegate {
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
         let wsnc = NSWorkspace.shared.notificationCenter
         wsnc.addObserver(self, selector: #selector(appActivated(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        wsnc.addObserver(self, selector: #selector(activeSpaceChanged), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         wsnc.addObserver(self, selector: #selector(screensSlept), name: NSWorkspace.screensDidSleepNotification, object: nil)
         wsnc.addObserver(self, selector: #selector(screensWoke), name: NSWorkspace.screensDidWakeNotification, object: nil)
         // debug: `Pet --snapshot` (from a second process) asks the running app to dump what it draws + its state
@@ -229,7 +228,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     /// Faster frames only when something is actually moving; slow ticks while the shark just breathes.
     private func desiredInterval(mouse: CGPoint) -> TimeInterval {
-        if screenAsleep || fullscreenHidden { return 2.0 }
+        if screenAsleep { return 2.0 }
         switch state {
         case .landing, .dragging, .wandering, .poked, .shrinking, .growing: return 1.0 / 60.0
         case .strolling: return cruiseSpeed > 1 ? 1.0 / 30.0 : 1.0 / 15.0
@@ -245,7 +244,20 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func screensSlept() { screenAsleep = true }
-    @objc private func screensWoke() { screenAsleep = false; lastTick = CACurrentMediaTime() }
+    @objc private func screensWoke() {
+        screenAsleep = false
+        lastTick = CACurrentMediaTime()
+        window.orderFrontRegardless()
+    }
+
+    /// Full-screen apps live in their own Spaces. Reassert the panel after a Space swipe so
+    /// the pet remains present everywhere, including full-screen app Spaces.
+    @objc private func activeSpaceChanged() {
+        guard !screenAsleep else { return }
+        window.orderFrontRegardless()
+        if launchPanel.isShown { launchPanel.orderFrontRegardless() }
+        lastTick = CACurrentMediaTime()
+    }
 
     private func applySharing() {
         window.sharingType = hideFromSharing ? .none : .readOnly
@@ -426,14 +438,6 @@ final class PetController: NSObject, NSMenuDelegate {
         keyIdle = selfTesting ? 999 : CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
         if keyIdle < 3 { typingFor += dt } else if keyIdle > 8 { typingFor = 0 }
 
-        updateFullscreen(dt: wallDt)
-        if fullscreenHidden {
-            // frozen and invisible while a fullscreen app is in front
-            if launchPanel.isShown { launchPanel.hide() }
-            hoverDwell = 0
-            restartTimer(interval: desiredInterval(mouse: mouse))
-            return
-        }
         updateHover(mouse: mouse, dt: dt)
         updateState(dt: dt, mouse: mouse)
         updateAnimation(dt: dt, mouse: mouse)
@@ -441,33 +445,6 @@ final class PetController: NSObject, NSMenuDelegate {
         view.pose = pose
         applyScreenClip()
         restartTimer(interval: desiredInterval(mouse: mouse))
-    }
-
-    /// Fully gone while a fullscreen app (video, Keynote, a game) is in front.
-    private func updateFullscreen(dt: TimeInterval) {
-        fullscreenCheckIn -= dt
-        guard fullscreenCheckIn <= 0 else { return }
-        fullscreenCheckIn = 2
-        let screenFrame = currentScreen.frame
-        var covered = false
-        if let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
-            for w in list {
-                guard (w[kCGWindowLayer as String] as? Int) == 0,
-                      (w[kCGWindowOwnerPID as String] as? Int32) != ProcessInfo.processInfo.processIdentifier,
-                      let b = w[kCGWindowBounds as String] as? [String: CGFloat],
-                      let width = b["Width"], let height = b["Height"] else { continue }
-                if abs(width - screenFrame.width) <= 2 && abs(height - screenFrame.height) <= 2 { covered = true; break }
-            }
-        }
-        if covered != fullscreenHidden {
-            fullscreenHidden = covered
-            if covered {
-                launchPanel.hide()
-                window.orderOut(nil)
-            } else {
-                window.orderFrontRegardless()
-            }
-        }
     }
 
     private func welcomeBack() {
@@ -1529,7 +1506,7 @@ final class PetController: NSObject, NSMenuDelegate {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var lines: [String] = []
         lines.append("state=\(state) edge=\(edge) mini=\(mini) peek=\(peek) origin=\(origin) screenVisible=\(currentScreen.visibleFrame)")
-        lines.append("fullscreenHidden=\(fullscreenHidden) windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onScreen=\(window.isOnActiveSpace)")
+        lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace)")
         lines.append("atlas=\(SpriteAtlas.image != nil) coat=\(pose.coat) walk=\(pose.walk) squash=\(pose.squashX),\(pose.squashY) flop=\(pose.flop)")
         if let mask = window.contentView?.layer?.mask as? CAShapeLayer { lines.append("mask=\(mask.path?.boundingBox ?? .zero)") } else { lines.append("mask=none") }
         try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("state.txt"), atomically: true, encoding: .utf8)
