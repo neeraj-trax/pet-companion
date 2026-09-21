@@ -51,6 +51,9 @@ final class PetController: NSObject, NSMenuDelegate {
     private var lastNapEnded: TimeInterval = 0
     private var napDuration: TimeInterval = 0
     private var afkNap = false
+    /// Set to true to make it lie down after `afkSleepAfter` seconds without mouse or keyboard.
+    private let afkSleepEnabled = false
+    private let afkSleepAfter: TimeInterval = 10
     private var wanderTarget: CGFloat = 0
     private var wanderDeadline: TimeInterval = 0
     private var blinkIn: TimeInterval = 3
@@ -394,7 +397,7 @@ final class PetController: NSObject, NSMenuDelegate {
         switch moodNow { case .shy: return 600; case .normal: return 300; case .chatty: return 240 }
     }
     private var idleDiveChance: Double {
-        switch moodNow { case .shy: return 0.45; case .normal: return 0.30; case .chatty: return 0.15 }
+        switch moodNow { case .shy: return 0.85; case .normal: return 0.7; case .chatty: return 0.5 }
     }
 
     // MARK: - Animation loop
@@ -518,7 +521,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private func updateState(dt: TimeInterval, mouse: CGPoint) {
         switch state {
         case .idle:
-            if mouseStillFor > 10 && keyIdle > 10 && !launchPanel.isShown && !pressed && !dropHovering && !selfTesting {
+            if afkSleepEnabled && mouseStillFor > afkSleepAfter && keyIdle > afkSleepAfter && !launchPanel.isShown && !pressed && !dropHovering && !selfTesting {
                 afkNap = true
                 startNap()
             }
@@ -672,7 +675,7 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     private func beginStroll() {
-        cruiseUntil = time + Double.random(in: 120...360)
+        cruiseUntil = time + Double.random(in: 40...120)
         resurfaceAfter = Double.random(in: 20...25)
         state = .strolling
         stateTime = 0
@@ -991,21 +994,19 @@ final class PetController: NSObject, NSMenuDelegate {
     private func enterIdle() {
         state = .idle
         stateTime = 0
-        nextDecisionIn = Double.random(in: 6...16)
+        nextDecisionIn = Double.random(in: 4...10)
     }
 
     private func decideNext() {
         let sinceNap = time - lastNapEnded
         let userAway = mouseStillFor > 150
-        let userBusy = mouseStillFor < 20
+        let userBusy = mouseStillFor < 6 
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let r = Double.random(in: 0..<1)
-        var napChance = sinceNap > 120 ? 0.18 : 0.0
-        if userAway { napChance = 0.7 }
-        if r < napChance { startNap(); return }
+        _ = sinceNap; _ = userAway            // random naps are off; "Nap now" still works
         if !userBusy && !reduceMotion {
-            if hugEdges && edge == .bottom && r < napChance + idleDiveChance { startStroll(.idle); return }
-            if hugEdges && edge != .free && r < napChance + idleDiveChance + 0.3 { startWander(); return }
+            if (edge == .bottom || edge == .top || edge == .free) && r < idleDiveChance { startStroll(.idle); return }
+            if hugEdges && edge != .free && r < idleDiveChance + 0.3 { startWander(); return }
         }
         if Bool.random() { pulse(amount: 0.08, duration: 0.35) } else { finFlickUntil = time + 0.35 }
         nextDecisionIn = Double.random(in: userBusy ? 8...18 : 5...12)

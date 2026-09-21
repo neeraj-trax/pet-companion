@@ -25,7 +25,6 @@ and gets out of the way while you work.
   when you pick "Shh for an hour", it shrinks to half size and strolls along the edge. Move your
   cursor near it and it grows back. Fullscreen apps hide it completely.
 - **Click** it to poke. **Double-click** to jump to the app you were using before.
-- **Sleep**: 10 seconds without mouse or keyboard and it lies down; any input wakes it.
 - **Talks on its screen**: little messages and expressions show on its TV face. During a call,
   sound bars appear while you speak (macOS asks once for microphone access).
 - Right-click menu: apps, clipboard, stash, hide, nap, come here, shh, skin, mood, quiet hours,
