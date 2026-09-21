@@ -1436,6 +1436,16 @@ final class PetController: NSObject, NSMenuDelegate {
         startNap()
     }
 
+    /// Called when Pet.app is opened again while already running: make it obvious where it is.
+    func showYourself() {
+        if state == .napping { wake() }
+        shhUntil = 0
+        if launchPanel.isShown { launchPanel.hide() }
+        welcomeUntil = time + 2.5
+        thinkLater("here! ◠‿◠", after: 0.9, for: 2.5)
+        comeHere()
+    }
+
     @objc func comeHere() {
         let mouse = NSEvent.mouseLocation
         if isMini {

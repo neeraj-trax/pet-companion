@@ -42,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Double-clicking Pet.app again while it runs brings the shark to you.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        controller.comeHere()
+        controller.showYourself()
         return false
     }
 }
