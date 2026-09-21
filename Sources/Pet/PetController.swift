@@ -688,7 +688,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     private func startLeg() {
         legUntil = time + Double.random(in: 4...10)
-        targetSpeed = CGFloat.random(in: 26...36)
+        targetSpeed = 30
         pauseUntil = 0
     }
 
@@ -710,13 +710,13 @@ final class PetController: NSObject, NSMenuDelegate {
         } else if time > legUntil {
             pauseUntil = time + Double.random(in: 1.5...4)
         }
-        cruiseSpeed = approach(cruiseSpeed, targetSpeed, rate: 3, dt: dtf)
+        cruiseSpeed = approach(cruiseSpeed, targetSpeed, rate: 6, dt: dtf)
         var o = origin
         o.x += cruiseDir * cruiseSpeed * dtf
         if o.x <= minX { o.x = minX; cruiseDir = 1; pauseUntil = time + 1; hitWall = true }
         else if o.x >= maxX { o.x = maxX; cruiseDir = -1; pauseUntil = time + 1; hitWall = true }
         setOrigin(o)
-        if cruiseSpeed > 3 && cruiseDir != pose.facing { pose.facing = cruiseDir }
+        if cruiseSpeed > 0.5 && cruiseDir != pose.facing { pose.facing = cruiseDir }
 
         let c = bodyCenterOnScreen
         let near = hypot(mouse.x - c.x, mouse.y - c.y) < 200 && mouseStillFor < 1.5
@@ -972,7 +972,7 @@ final class PetController: NSObject, NSMenuDelegate {
         }
         pose.shadow = approach(pose.shadow, shadowTarget, rate: 6, dt: dtf)
         pose.submerged = 0
-        pose.walk = (state == .strolling && cruiseSpeed > 3) ? cruiseDir : 0
+        pose.walk = (state == .strolling && cruiseSpeed > 0.5) ? cruiseDir : 0
         pose.waterline = currentScreen.visibleFrame.minY - origin.y
         pose.ceiling = currentScreen.visibleFrame.maxY - origin.y
         pose.zzz = approach(pose.zzz, (napping && !yawning) ? 1 : 0, rate: 2.5, dt: dtf)

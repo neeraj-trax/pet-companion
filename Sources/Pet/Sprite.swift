@@ -59,8 +59,15 @@ enum SpriteAtlas {
     }
 
     /// Frame to show `elapsed` seconds after `state` began.
-    static func frame(for state: SpriteState, elapsed: TimeInterval, reducedMotion: Bool = false) -> SpriteFrame {
+    static func frame(for state: SpriteState, elapsed: TimeInterval, reducedMotion: Bool = false, loop: Bool = false) -> SpriteFrame {
         if reducedMotion { return SpriteFrame(row: state.rawValue, col: 0) }
+        if loop {   // keep the cycle going for as long as the state lasts (walking), no slow idle tail
+            let cycle = state.durations
+            let total = cycle.reduce(0, +)
+            var ms = Int((max(0, elapsed) * 1000).truncatingRemainder(dividingBy: Double(total)))
+            for (i, d) in cycle.enumerated() { if ms < d { return SpriteFrame(row: state.rawValue, col: i) }; ms -= d }
+            return SpriteFrame(row: state.rawValue, col: cycle.count - 1)
+        }
         let (frames, loopFrom) = sequence(for: state)
         var ms = max(0, elapsed) * 1000
         let introMs = frames[..<loopFrom].reduce(0) { $0 + Double($1.1) }

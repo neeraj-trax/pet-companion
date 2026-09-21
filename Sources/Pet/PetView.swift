@@ -147,7 +147,7 @@ final class PetView: NSView {
         } else if napping {
             frame = SpriteFrame(row: 0, col: 1)                                              // the closed-eyes idle frame
         } else {
-            frame = SpriteAtlas.frame(for: state, elapsed: TimeInterval(p.time - spriteStateStart), reducedMotion: reduced)
+            frame = SpriteAtlas.frame(for: state, elapsed: TimeInterval(p.time - spriteStateStart), reducedMotion: reduced, loop: p.walk != 0)
             let lookMag = hypot(p.look.x, p.look.y)
             if state == .idle, lookMag > 0.5 {                                              // directional gaze
                 frame = SpriteAtlas.lookFrame(dx: p.look.x * p.facing, dyUp: p.look.y)
