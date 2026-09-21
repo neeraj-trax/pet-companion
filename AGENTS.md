@@ -4,7 +4,7 @@ Read this first. It tells you what the app is, how the code is laid out, what ea
 
 ## What it is
 
-A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to a **Stash** folder. When you are busy it shrinks to half size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip; while you speak on a call, sound bars show on its TV face. No permissions are required except Microphone (asked once, only when a call is already using the mic) and Automation for play/pause (asked once).
+A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to a **Stash** folder. When you are busy it shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip; while you speak on a call, sound bars show on its TV face. No permissions are required except Microphone (asked once, only when a call is already using the mic) and Automation for play/pause (asked once).
 
 Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget, never distracting during work.
 
@@ -31,7 +31,7 @@ Headless checks (there is no screenshot access for agents; use these):
 .build/release/Pet --render-icon build/icon.png        # app icon
 ```
 
-Then Read the PNG. `build-app.sh` refuses to bundle if the self-test fails. The self-test can flake only if the real mouse is over the pet; rerun.
+Then read the PNG. `build-app.sh` refuses to bundle if the self-test fails. Self-test mode uses an off-screen synthetic pointer so the real mouse cannot interrupt a tested stroll.
 
 Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~/Library/Application Support/Pet/Stash/` (dropped things), `defaults` domain `in.vellabs.pet` (position, edge, skin, mood, toggles).
 
@@ -42,7 +42,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 | `main.swift` | entry point, debug CLI flags | `--selftest`, `--render-*` |
 | `AppDelegate.swift` | menu-bar fin icon, reopen → "Come here" | tiny |
 | `PetWindow.swift` | the transparent always-on-top non-activating panel | `ignoresMouseEvents` is toggled per tick by the controller |
-| `PetController.swift` | **the brain**: state machine, hover/drag/poke, edge snapping, hiding, typing/fullscreen detection, menu, self-test | ~1700 lines; sections are marked with `// MARK:` |
+| `PetController.swift` | **the brain**: state machine, hover/drag/poke, edge snapping, hiding, typing detection, menu, self-test | ~1700 lines; sections are marked with `// MARK:` |
 | `PetPose.swift` | `PetPose` = everything the drawing gets per frame; `PetGeometry` constants; `Coat` skins | the contract between controller and view |
 | `PetView.swift` | draws the character from `PetPose`; drag-and-drop target; pose renderers | visuals agent's file |
 | `Sprite.swift` | atlas metadata, playback rules, per-skin recolouring | visuals agent's file |
@@ -59,7 +59,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 
 **Loop.** `PetController.tick()` runs on a Timer whose rate adapts (60 fps while moving, 15 fps idle, 2 s while the displays sleep). Each tick: read the mouse, detect typing (`CGEventSource.secondsSinceLastEventType`, no permission), update hover, update the state machine, update the animation values into `pose`, hand `pose` to the view, tick the ring, apply the screen-edge clip mask. The pet and ring panels join every macOS Space, including full-screen app Spaces; an active-Space notification brings them back to the front after a swipe.
 
-**States** (`PetController.State`): `idle, wandering, napping, poked, dragging, landing, shrinking, strolling, growing`. The last three are the "get out of the way" family: it shrinks to 55 % over 0.6 s (`mini` 0→1, applied as squash anchored at the feet), then strolls left/right along its edge with the running sprite rows (legs of 4–10 s, pauses, turns after a stop, never a jump), and grows back when the cursor comes within 200 pt, on hover (ring opens after growing), or when the trigger ends. Side edges use a `peek` value instead (tucked with a sliver showing, brief peeks, out when the cursor is near). `edge` is `.bottom/.top/.left/.right/.free`; `.free` means "stays where dropped" (drops more than 150 pt from any edge). Nap: the lie-down sleep exists (`afkSleepEnabled`, `flop` → the view rolls the sprite 90°) but is switched off at the owner's request; only "Nap now" naps. Idle strolls are frequent: every 4–10 s standing there is a 70 % chance (Normal mood) to shrink and stroll for 40–120 s. Variable names `diveReason`, `cruise*`, `surfaceFrom` are leftovers from the shark's dive; they now describe the stroll.
+**States** (`PetController.State`): `idle, wandering, napping, poked, dragging, landing, shrinking, strolling, growing`. The last three are the "get out of the way" family: it shrinks to 75 % over 0.6 s (`mini` 0→1, applied as squash anchored at the feet), then strolls left/right along its edge with the running sprite rows (legs of 4–10 s, pauses, turns after a stop, never a jump), and grows back when the cursor comes within 200 pt, on hover (ring opens after growing), or when the trigger ends. Side edges use a `peek` value instead (tucked with a sliver showing, brief peeks, out when the cursor is near). `edge` is `.bottom/.top/.left/.right/.free`; `.free` means "stays where dropped" (drops more than 150 pt from any edge). Nap: the lie-down sleep exists (`afkSleepEnabled`, `flop` → the view rolls the sprite 90°) but is switched off at the owner's request; only "Nap now" naps. Idle strolls are frequent: every 4–10 s standing there is a 70 % chance (Normal mood) to shrink and stroll for 40–120 s. Variable names `diveReason`, `cruise*`, `surfaceFrom` are leftovers from the shark's dive; they now describe the stroll.
 
 **Triggers that make it small:** idle chance (mood), steady typing for 60–90 s, 15 min in one app, "Shh for an hour", "Dive while <app> is in front". It never grows back on its own while the mouse is still. Full-screen apps do not hide it; Pet stays visible when the user swipes between Spaces.
 

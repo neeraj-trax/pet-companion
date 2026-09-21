@@ -118,7 +118,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private var peekTarget: CGFloat = 1
     private var peekChangeIn: TimeInterval = 4
 
-    // stroll: 0 = full size, 1 = small
+    // stroll: 0 = full size, 1 = compact (75% of idle size)
     private var mini: CGFloat = 0
     private var diveReason: DiveReason = .idle
     private var cruiseUntil: TimeInterval = 0
@@ -425,7 +425,9 @@ final class PetController: NSObject, NSMenuDelegate {
         time += wallDt                      // clocks (naps, cruises, shh) follow the wall clock
         stateTime += dt
 
-        let mouse = NSEvent.mouseLocation
+        // Keep headless verification deterministic: the real pointer must not hover the test pet
+        // and interrupt a stroll by asking it to grow.
+        let mouse = selfTesting ? CGPoint(x: -10_000, y: -10_000) : NSEvent.mouseLocation
         let moved = hypot(mouse.x - lastMouse.x, mouse.y - lastMouse.y)
         cursorSpeed = approach(cursorSpeed, moved / CGFloat(max(dt, 0.001)), rate: 12, dt: CGFloat(dt))
         if moved > 0.5 {
@@ -628,10 +630,10 @@ final class PetController: NSObject, NSMenuDelegate {
         } else { curiousBuild = 0 }
     }
 
-    // MARK: - Stroll (idle "hide": shrink to half size and walk along the edge)
+    // MARK: - Stroll (idle "hide": shrink to compact size and walk along the edge)
 
     private var isMini: Bool { state == .shrinking || state == .strolling || state == .growing }
-    private var miniScale: CGFloat { 1 - 0.45 * mini }
+    private var miniScale: CGFloat { 1 - 0.25 * mini }
 
     private func startStroll(_ reason: DiveReason) {
         guard edge == .bottom || edge == .top || edge == .free, hugEdges || edge == .free, !isMini, state != .dragging else { return }
@@ -1271,7 +1273,7 @@ final class PetController: NSObject, NSMenuDelegate {
         menu.addItem(withTitle: n == 0 ? "Open stash (empty — drop things on the shark)" : "Open stash (\(n))",
                      action: #selector(openStash), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Go for a stroll (small)", action: #selector(swimNow), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Go for a stroll (compact)", action: #selector(swimNow), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Nap now", action: #selector(napNow), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Come here", action: #selector(comeHere), keyEquivalent: "").target = self
         menu.addItem(withTitle: time < shhUntil ? "Shh for an hour ✓ (tap to end)" : "Shh for an hour",

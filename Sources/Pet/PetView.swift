@@ -658,7 +658,7 @@ enum IconRenderer {
         cells.append(("nap", p, SpriteFrame(row: 0, col: 1)))
         p = base; p.thought = "hm"; p.thoughtAlpha = 1; p.shadow = 1
         cells.append(("thought", p, SpriteFrame(row: 6, col: 1)))
-        p = base; p.walk = 1; p.squashX = 0.55; p.squashY = 0.55; cells.append(("stroll (small)", p, SpriteFrame(row: 1, col: 3)))
+        p = base; p.walk = 1; p.squashX = 0.75; p.squashY = 0.75; cells.append(("stroll (compact)", p, SpriteFrame(row: 1, col: 3)))
         p = base; p.listening = 1; cells.append(("listening", p, SpriteFrame(row: 0, col: 0)))
         p = base; p.flop = 1; p.eyeStyle = .closed; p.zzz = 1; cells.append(("lying nap", p, SpriteFrame(row: 0, col: 1)))
         for coat in Coat.allCases {
