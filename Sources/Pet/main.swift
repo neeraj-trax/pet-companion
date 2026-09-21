@@ -27,6 +27,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-ring-corners"), i + 1 
     exit(0)
 }
 
+if CommandLine.arguments.contains("--snapshot") {
+    DistributedNotificationCenter.default().postNotificationName(Notification.Name("in.vellabs.pet.snapshot"), object: nil, userInfo: nil, deliverImmediately: true)
+    print("asked the running Pet to write \(NSTemporaryDirectory())pet-debug/")
+    exit(0)
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)   // no Dock icon, lives in the menu bar
 

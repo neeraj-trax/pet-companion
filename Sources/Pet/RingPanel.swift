@@ -340,7 +340,7 @@ final class RingView: NSView {
     private func baseAngles() -> [CGFloat] {
         let n = items.count
         guard n > 0 else { return [] }
-        let full = edge == .free || cfg.layout.arcDegrees >= 360
+        let full = cfg.layout.arcDegrees >= 360
         let arc = (full ? 360 : cfg.layout.arcDegrees) * .pi / 180
         if full { return (0..<n).map { centreAngle + arc / 2 - arc / CGFloat(n) * (CGFloat($0) + 0.5) } }
         if n == 1 { return [centreAngle] }

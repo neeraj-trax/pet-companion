@@ -19,7 +19,7 @@ struct RingLayout {
 
     func angles(count: Int, edge: ScreenEdge) -> [CGFloat] {
         guard count > 0 else { return [] }
-        let full = edge == .free || arcDegrees >= 360
+        let full = arcDegrees >= 360
         let arc = (full ? 360 : arcDegrees) * .pi / 180
         let centre = Self.centreAngle(for: edge)
         if full {

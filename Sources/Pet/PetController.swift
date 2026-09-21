@@ -199,6 +199,9 @@ final class PetController: NSObject, NSMenuDelegate {
         wsnc.addObserver(self, selector: #selector(appActivated(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         wsnc.addObserver(self, selector: #selector(screensSlept), name: NSWorkspace.screensDidSleepNotification, object: nil)
         wsnc.addObserver(self, selector: #selector(screensWoke), name: NSWorkspace.screensDidWakeNotification, object: nil)
+        // debug: `Pet --snapshot` (from a second process) asks the running app to dump what it draws + its state
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(debugSnapshot),
+                                                            name: Notification.Name("in.vellabs.pet.snapshot"), object: nil)
         if let front = NSWorkspace.shared.frontmostApplication {
             frontBundle = front.bundleIdentifier
             if let url = front.bundleURL { recentApps = [url] }
@@ -1517,6 +1520,31 @@ final class PetController: NSObject, NSMenuDelegate {
     @objc private func quit() {
         savePosition()
         NSApp.terminate(nil)
+    }
+
+    // MARK: - Debug snapshot
+
+    @objc private func debugSnapshot() {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pet-debug", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var lines: [String] = []
+        lines.append("state=\(state) edge=\(edge) mini=\(mini) peek=\(peek) origin=\(origin) screenVisible=\(currentScreen.visibleFrame)")
+        lines.append("fullscreenHidden=\(fullscreenHidden) windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onScreen=\(window.isOnActiveSpace)")
+        lines.append("atlas=\(SpriteAtlas.image != nil) coat=\(pose.coat) walk=\(pose.walk) squash=\(pose.squashX),\(pose.squashY) flop=\(pose.flop)")
+        if let mask = window.contentView?.layer?.mask as? CAShapeLayer { lines.append("mask=\(mask.path?.boundingBox ?? .zero)") } else { lines.append("mask=none") }
+        try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("state.txt"), atomically: true, encoding: .utf8)
+        guard let view = window.contentView, let layer = view.layer else { return }
+        let b = view.bounds
+        guard let ctx = CGContext(data: nil, width: Int(b.width * 2), height: Int(b.height * 2), bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
+        ctx.scaleBy(x: 2, y: 2)
+        ctx.setFillColor(NSColor(white: 0.9, alpha: 1).cgColor); ctx.fill(b)
+        view.displayIfNeeded()
+        layer.render(in: ctx)
+        if let img = ctx.makeImage() {
+            let rep = NSBitmapImageRep(cgImage: img)
+            try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent("view.png"))
+        }
     }
 
     // MARK: - Headless self-test (run with `Pet --selftest`)
