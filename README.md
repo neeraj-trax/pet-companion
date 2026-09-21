@@ -17,7 +17,7 @@ and gets out of the way while you work.
   cursor grows like the Dock. Click to launch. The name pops out next to the chip.
 - **Manage apps**: right-click → "Manage apps…" to add, remove or reorder (or right-click a chip).
 - **Drop** files, images, links or text on it → saved to your Stash. The folder chip in the ring
-  opens it (`~/Library/Application Support/Pet/Stash/`). The clipboard chip keeps what you last copied.
+  opens a floating shelf. Click an item to preview it, or drag it straight into another app.
 - **Music**: when Spotify or Apple Music is playing, a player chip appears first in the ring;
   click it to play/pause (macOS asks once for permission).
 - **Move it**: drag it anywhere. Near an edge it tucks into that edge; elsewhere it stays put.

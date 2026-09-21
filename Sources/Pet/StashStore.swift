@@ -16,6 +16,19 @@ final class StashStore {
         (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.filter { !$0.hasPrefix(".") }.count ?? 0
     }
 
+    /// Visible stash items, newest first. These URLs can be dragged straight into another app.
+    var items: [URL] {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isDirectoryKey]
+        let urls = (try? FileManager.default.contentsOfDirectory(at: folder,
+                                                                  includingPropertiesForKeys: Array(keys),
+                                                                  options: [.skipsHiddenFiles])) ?? []
+        return urls.sorted {
+            let a = (try? $0.resourceValues(forKeys: keys).contentModificationDate) ?? .distantPast
+            let b = (try? $1.resourceValues(forKeys: keys).contentModificationDate) ?? .distantPast
+            return a > b
+        }
+    }
+
     private func stamp() -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -146,7 +159,4 @@ final class StashStore {
         }
     }
 
-    func reveal() {
-        NSWorkspace.shared.activateFileViewerSelecting([folder])
-    }
 }

@@ -1,8 +1,8 @@
 import AppKit
 
-/// One chip in the ring: an app, the clipboard, or "+".
+/// One chip in the ring: an app, Stash, or "+".
 struct RingItem {
-    enum Kind { case app(URL, pinned: Bool), clip, stash, add, music(MusicWatcher.Track) }
+    enum Kind { case app(URL, pinned: Bool), stash, add, music(MusicWatcher.Track) }
     let kind: Kind
     let title: String
     let icon: NSImage?
@@ -17,7 +17,6 @@ struct RingItem {
         case .music(let t):
             icon = t.appURL.map { NSWorkspace.shared.icon(forFile: $0.path) }
             title = t.caption
-        case .clip:  icon = nil; title = "Keep clipboard"
         case .stash: icon = nil; title = "Stash"
         case .add:   icon = nil; title = "Add an app"
         }
@@ -46,7 +45,7 @@ struct RingConfig {
 final class RingPanel: NSPanel {
     var onLaunch: ((URL) -> Void)?
     var onAdd: (() -> Void)?
-    var onClip: (() -> Void)?
+    var onStash: (() -> Void)?
     var onRemove: ((URL) -> Void)?
     var onPin: ((URL) -> Void)?
     var onPlayPause: (() -> Void)?
@@ -89,13 +88,13 @@ final class RingPanel: NSPanel {
         let pinned = ShortcutStore.shared.apps
         var items: [RingItem] = []
         if let t = nowPlaying { items.append(RingItem(kind: .music(t))) }
-        for r in recents.filter({ r in !pinned.contains { $0.path == r.path } }).prefix(config.maxRecents) {
+        let recentItems = recents.filter({ r in !pinned.contains { $0.path == r.path } }).prefix(config.maxRecents)
+        for r in recentItems {
             items.append(RingItem(kind: .app(r, pinned: false)))
         }
         items.append(contentsOf: pinned.map { RingItem(kind: .app($0, pinned: true)) })
-        items.append(RingItem(kind: .clip))
         items.append(RingItem(kind: .stash))
-        ring.setItems(items, recentCount: min(config.maxRecents, items.count - pinned.count - 2))
+        ring.setItems(items, recentCount: recentItems.count)
         if isShown { ring.needsDisplay = true }
     }
 
@@ -262,8 +261,7 @@ final class RingPanel: NSPanel {
     fileprivate func activate(_ item: RingItem) {
         switch item.kind {
         case .app(let url, _): onLaunch?(url)
-        case .clip: onClip?()
-        case .stash: StashStore.shared.reveal()
+        case .stash: onStash?()
         case .add: onAdd?()
         case .music: onPlayPause?()
         }
@@ -500,17 +498,6 @@ final class RingView: NSView {
                 let ink = NSColor(white: 0.82, alpha: 1)
                 let k = d / c.layout.chip * press
                 switch item.kind {
-                case .clip:
-                    let r = CGRect(x: p.x - 7 * k, y: p.y - 9 * k, width: 14 * k, height: 18 * k)
-                    let b = NSBezierPath(roundedRect: r, xRadius: 3 * k, yRadius: 3 * k); b.lineWidth = 1.6; ink.setStroke(); b.stroke()
-                    ink.setFill()
-                    NSBezierPath(roundedRect: CGRect(x: p.x - 4 * k, y: r.maxY - 2.5 * k, width: 8 * k, height: 4.5 * k), xRadius: 1.5, yRadius: 1.5).fill()
-                    let lines = NSBezierPath(); lines.lineWidth = 1.3; lines.lineCapStyle = .round
-                    for j in 0..<2 {
-                        let y = r.midY - 1 * k - CGFloat(j) * 4 * k
-                        lines.move(to: CGPoint(x: r.minX + 3.5 * k, y: y)); lines.line(to: CGPoint(x: r.maxX - 3.5 * k, y: y))
-                    }
-                    ink.withAlphaComponent(0.7).setStroke(); lines.stroke()
                 case .stash:
                     // a little folder
                     let w: CGFloat = 18 * k, h: CGFloat = 13 * k

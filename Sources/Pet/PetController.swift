@@ -24,6 +24,7 @@ final class PetController: NSObject, NSMenuDelegate {
     let window = PetWindow()
     let view = PetView(frame: CGRect(origin: .zero, size: PetGeometry.viewSize))
     let launchPanel = RingPanel()
+    let stashPanel = StashPanel()
     let store = ShortcutStore.shared
     let music = MusicWatcher()
     let mic = MicWatcher()
@@ -165,7 +166,7 @@ final class PetController: NSObject, NSMenuDelegate {
         applySharing()
         launchPanel.onLaunch = { [weak self] url in self?.launch(url) }
         launchPanel.onAdd = { [weak self] in self?.addShortcut() }
-        launchPanel.onClip = { [weak self] in self?.keepClipboard() }
+        launchPanel.onStash = { [weak self] in self?.openStash() }
         launchPanel.onPlayPause = { [weak self] in
             self?.music.playPause()
             self?.launchPanel.hide()
@@ -248,6 +249,7 @@ final class PetController: NSObject, NSMenuDelegate {
         screenAsleep = false
         lastTick = CACurrentMediaTime()
         window.orderFrontRegardless()
+        if stashPanel.isShown { stashPanel.orderFrontRegardless() }
     }
 
     /// Full-screen apps live in their own Spaces. Reassert the panel after a Space swipe so
@@ -256,12 +258,14 @@ final class PetController: NSObject, NSMenuDelegate {
         guard !screenAsleep else { return }
         window.orderFrontRegardless()
         if launchPanel.isShown { launchPanel.orderFrontRegardless() }
+        if stashPanel.isShown { stashPanel.orderFrontRegardless() }
         lastTick = CACurrentMediaTime()
     }
 
     private func applySharing() {
         window.sharingType = hideFromSharing ? .none : .readOnly
         launchPanel.sharingType = hideFromSharing ? .none : .readOnly
+        stashPanel.sharingType = hideFromSharing ? .none : .readOnly
     }
 
     // MARK: - Apps you use
@@ -1139,7 +1143,7 @@ final class PetController: NSObject, NSMenuDelegate {
         spawnBubbles(3)
     }
 
-    // MARK: - Drops and clipboard (stash)
+    // MARK: - Drops and Stash
 
     func dragHover(_ inside: Bool) {
         dropHovering = inside
@@ -1176,32 +1180,7 @@ final class PetController: NSObject, NSMenuDelegate {
         gulpT = 0
         think("kept \(what) ✓", for: 2.5)
         spawnBubbles(3)
-    }
-
-    func keepClipboard() {
-        let store = StashStore.shared
-        let pb = NSPasteboard.general
-        if store.hasFiles(pb) {
-            let urls = store.fileURLs(pb)
-            think("…", for: 30)
-            launchPanel.flash("keeping…", for: 30)
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                let result = store.saveFiles(urls)
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    if let what = result { self.gulp(what); self.launchPanel.flash("kept \(what)") }
-                    else { self.think("?", for: 1.5); self.launchPanel.flash("couldn't keep that") }
-                }
-            }
-            return
-        }
-        if let what = store.save(from: pb) {
-            gulp(what)
-            launchPanel.flash("kept \(what)")
-        } else {
-            think("empty?", for: 1.5)
-            launchPanel.flash("clipboard is empty")
-        }
+        if stashPanel.isShown { stashPanel.reload() }
     }
 
     // MARK: - Mouse (from PetView)
@@ -1268,7 +1247,6 @@ final class PetController: NSObject, NSMenuDelegate {
     private func populate(_ menu: NSMenu) {
         menu.addItem(withTitle: "Add app shortcut…", action: #selector(addShortcutAction), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Manage apps…", action: #selector(manageApps), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Keep clipboard in stash", action: #selector(keepClipboardAction), keyEquivalent: "").target = self
         let n = StashStore.shared.count
         menu.addItem(withTitle: n == 0 ? "Open stash (empty — drop things on the shark)" : "Open stash (\(n))",
                      action: #selector(openStash), keyEquivalent: "").target = self
@@ -1338,8 +1316,11 @@ final class PetController: NSObject, NSMenuDelegate {
         controller.onChange = { [weak self] in self?.launchPanel.reload() }
         controller.show()
     }
-    @objc private func keepClipboardAction() { keepClipboard() }
-    @objc private func openStash() { StashStore.shared.reveal() }
+    @objc private func openStash() {
+        if launchPanel.isShown { launchPanel.hide() }
+        stashPanel.show(near: hitRectOnScreen, screen: currentScreen.visibleFrame)
+        panelCooldownUntil = time + 0.8
+    }
 
     func addShortcut() {
         launchPanel.hide()
@@ -1508,7 +1489,7 @@ final class PetController: NSObject, NSMenuDelegate {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var lines: [String] = []
         lines.append("state=\(state) edge=\(edge) mini=\(mini) peek=\(peek) origin=\(origin) screenVisible=\(currentScreen.visibleFrame)")
-        lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace)")
+        lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace) stashVisible=\(stashPanel.isShown)")
         lines.append("atlas=\(SpriteAtlas.image != nil) coat=\(pose.coat) walk=\(pose.walk) squash=\(pose.squashX),\(pose.squashY) flop=\(pose.flop)")
         if let mask = window.contentView?.layer?.mask as? CAShapeLayer { lines.append("mask=\(mask.path?.boundingBox ?? .zero)") } else { lines.append("mask=none") }
         try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("state.txt"), atomically: true, encoding: .utf8)

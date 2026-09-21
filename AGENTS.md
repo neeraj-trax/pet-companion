@@ -4,7 +4,7 @@ Read this first. It tells you what the app is, how the code is laid out, what ea
 
 ## What it is
 
-A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to a **Stash** folder. When you are busy it shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip; while you speak on a call, sound bars show on its TV face. No permissions are required except Microphone (asked once, only when a call is already using the mic) and Automation for play/pause (asked once).
+A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. When you are busy it shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip; while you speak on a call, sound bars show on its TV face. No permissions are required except Microphone (asked once, only when a call is already using the mic) and Automation for play/pause (asked once).
 
 Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget, never distracting during work.
 
@@ -28,6 +28,7 @@ Headless checks (there is no screenshot access for agents; use these):
 .build/release/Pet --render-ring-live build/ring.png   # ring with magnification, light + dark
 .build/release/Pet --render-ring-appear build/a.png    # frames of the ring pop-in
 .build/release/Pet --render-ring-corners build/c.png   # ring fitted in screen corners/edges
+.build/release/Pet --render-stash build/stash.png      # floating draggable file shelf
 .build/release/Pet --render-icon build/icon.png        # app icon
 ```
 
@@ -51,6 +52,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 | `ManageAppsWindow.swift` | "Manage apps…" window: add / remove / reorder | |
 | `ShortcutStore.swift` | pinned app list, JSON | |
 | `StashStore.swift` | saving dropped files/images/links/text | files copied off the main thread |
+| `StashPanel.swift` | floating Stash shelf, file previews and drag-out | nonactivating; stays over full-screen apps |
 | `MusicWatcher.swift` | Spotify / Apple Music now-playing via distributed notifications | |
 | `MicWatcher.swift` | "user is speaking" during calls (CoreAudio running-somewhere + AVAudioEngine RMS) | |
 | `UI.swift` | shared font/colour helpers | |
@@ -63,7 +65,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 
 **Triggers that make it small:** idle chance (mood), steady typing for 60–90 s, 15 min in one app, "Shh for an hour", "Dive while <app> is in front". It never grows back on its own while the mouse is still. Full-screen apps do not hide it; Pet stays visible when the user swipes between Spaces.
 
-**Interactions:** click = poke (jump). Double-click = switch to the app you used before the current one. Drop = stash. Right-click = menu.
+**Interactions:** click = poke (jump). Double-click = switch to the app you used before the current one. Drop = save to Stash. The Stash ring chip opens a nonactivating shelf; click an item for a Quick Look preview or drag it into any app. Item gestures never move the shelf window. Right-click = menu. The old "Keep clipboard" ring chip and menu action were removed because their save-only behavior was unclear and duplicated the drop flow.
 
 **Expressions:** short texts (`pose.thought`) are drawn on the character's TV face by the view (panel colours sampled from the atlas per skin), not in a bubble. `pose.listening` draws sound bars there while the user speaks. `MicWatcher` only opens the mic while some other app already has it open (a call), measures RMS with an adaptive noise floor, and needs Microphone permission once (`NSMicrophoneUsageDescription` is in Info.plist).
 

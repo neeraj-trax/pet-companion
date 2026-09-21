@@ -26,6 +26,7 @@ The installed copy the owner uses is `/Applications/Pet.app`, so always reinstal
 .build/release/Pet --render-poses build/poses.png     # every character state
 .build/release/Pet --render-ring-live build/ring.png  # ring + magnification, light and dark
 .build/release/Pet --render-ring-corners build/c.png  # ring fitted in corners and edges
+.build/release/Pet --render-stash build/stash.png      # floating draggable file shelf
 .build/release/Pet --snapshot                         # ask the RUNNING app to dump what it draws + its state
 ```
 
