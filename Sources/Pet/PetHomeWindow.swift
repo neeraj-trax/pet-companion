@@ -1,29 +1,24 @@
 import AppKit
 
-/// The friendly home for Pet's settings. It keeps the character visible while the user
-/// changes appearance and keeps the essential app, Stash and preference controls in one place.
+/// A small home for Pet's color, size and app-ring choices.
 final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
     private weak var petController: PetController?
     private let room = PetRoomView()
     private let sizeSlider = NSSlider(value: 1, minValue: 0.85, maxValue: 1.15, target: nil, action: nil)
     private let sizeValue = NSTextField(labelWithString: "100%")
     private let appIcons = AppIconStrip()
-    private let edgesSwitch = NSButton(checkboxWithTitle: "Hug screen edges", target: nil, action: nil)
-    private let sharingSwitch = NSButton(checkboxWithTitle: "Hide from screenshots & sharing", target: nil, action: nil)
-    private let loginSwitch = NSButton(checkboxWithTitle: "Open at login", target: nil, action: nil)
-    private let moreSettings = NSButton(title: "More settings…", target: nil, action: nil)
     private var skinButtons: [SkinButton] = []
     private var previousApp: NSRunningApplication?
 
     init(controller: PetController) {
         petController = controller
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1020, height: 680),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 500),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         window.title = "Pet"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.minSize = NSSize(width: 980, height: 660)
+        window.minSize = NSSize(width: 740, height: 490)
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)
@@ -70,27 +65,26 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         for view in [header, left, right, divider] { view.translatesAutoresizingMaskIntoConstraints = false; content.addSubview(view) }
 
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: content.topAnchor, constant: 28),
-            header.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 30),
-            header.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -30),
-            header.heightAnchor.constraint(equalToConstant: 58),
+            header.topAnchor.constraint(equalTo: content.topAnchor, constant: 24),
+            header.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 26),
+            header.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -26),
+            header.heightAnchor.constraint(equalToConstant: 48),
 
-            left.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 10),
-            left.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 30),
-            left.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -26),
-            left.widthAnchor.constraint(greaterThanOrEqualToConstant: 500),
+            left.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 8),
+            left.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 26),
+            left.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -24),
+            left.widthAnchor.constraint(greaterThanOrEqualToConstant: 260),
 
             divider.topAnchor.constraint(equalTo: left.topAnchor),
             divider.bottomAnchor.constraint(equalTo: left.bottomAnchor),
-            divider.leadingAnchor.constraint(equalTo: left.trailingAnchor, constant: 24),
+            divider.leadingAnchor.constraint(equalTo: left.trailingAnchor, constant: 18),
             divider.widthAnchor.constraint(equalToConstant: 1),
 
             right.topAnchor.constraint(equalTo: left.topAnchor),
-            right.leadingAnchor.constraint(equalTo: divider.trailingAnchor, constant: 24),
-            right.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -30),
+            right.leadingAnchor.constraint(equalTo: divider.trailingAnchor, constant: 18),
+            right.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -26),
             right.bottomAnchor.constraint(lessThanOrEqualTo: left.bottomAnchor),
-            right.widthAnchor.constraint(greaterThanOrEqualToConstant: 360),
-            left.widthAnchor.constraint(equalTo: right.widthAnchor, multiplier: 1.42),
+            right.widthAnchor.constraint(equalToConstant: 390),
         ])
     }
 
@@ -98,30 +92,24 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         let view = NSView()
         let title = NSTextField(labelWithString: "Pet")
         title.font = UI.roundedFont(28, .bold)
-        let subtitle = NSTextField(labelWithString: "Make Pet yours")
-        subtitle.font = .systemFont(ofSize: 13)
-        subtitle.textColor = .secondaryLabelColor
-        let labels = NSStackView(views: [title, subtitle])
-        labels.orientation = .vertical
-        labels.alignment = .leading
-        labels.spacing = 1
-
-        labels.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(labels)
+        title.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(title)
         NSLayoutConstraint.activate([
-            labels.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            labels.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            title.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            title.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
         return view
     }
 
     private func makePreviewColumn() -> NSView {
-        let column = NSView()
-        room.translatesAutoresizingMaskIntoConstraints = false
-        column.addSubview(room)
+        room.layer?.cornerRadius = 14
+        return room
+    }
 
+    private func makeSizeSection() -> NSView {
+        let card = CardView()
         let sizeTitle = NSTextField(labelWithString: "Size")
-        sizeTitle.font = .systemFont(ofSize: 14, weight: .semibold)
+        sizeTitle.font = .systemFont(ofSize: 15, weight: .semibold)
         let small = NSTextField(labelWithString: "Small")
         let normal = NSTextField(labelWithString: "Default")
         let large = NSTextField(labelWithString: "Large")
@@ -155,46 +143,41 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
             sizeValue.centerYAnchor.constraint(equalTo: titleRow.centerYAnchor),
         ])
 
-        let sizeArea = NSStackView(views: [titleRow, sizeSlider, labelRow])
-        sizeArea.orientation = .vertical
-        sizeArea.spacing = 4
-        sizeArea.translatesAutoresizingMaskIntoConstraints = false
-        column.addSubview(sizeArea)
+        for item in [titleRow, sizeSlider, labelRow] { item.translatesAutoresizingMaskIntoConstraints = false; card.addSubview(item) }
         NSLayoutConstraint.activate([
-            room.topAnchor.constraint(equalTo: column.topAnchor),
-            room.leadingAnchor.constraint(equalTo: column.leadingAnchor),
-            room.trailingAnchor.constraint(equalTo: column.trailingAnchor),
-            room.bottomAnchor.constraint(equalTo: sizeArea.topAnchor, constant: -18),
-            sizeArea.leadingAnchor.constraint(equalTo: column.leadingAnchor, constant: 18),
-            sizeArea.trailingAnchor.constraint(equalTo: column.trailingAnchor, constant: -18),
-            sizeArea.bottomAnchor.constraint(equalTo: column.bottomAnchor),
-            sizeArea.heightAnchor.constraint(equalToConstant: 76),
+            titleRow.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+            titleRow.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
+            titleRow.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
             titleRow.heightAnchor.constraint(equalToConstant: 18),
+            sizeSlider.topAnchor.constraint(equalTo: titleRow.bottomAnchor, constant: 7),
+            sizeSlider.leadingAnchor.constraint(equalTo: titleRow.leadingAnchor),
+            sizeSlider.trailingAnchor.constraint(equalTo: titleRow.trailingAnchor),
+            labelRow.topAnchor.constraint(equalTo: sizeSlider.bottomAnchor, constant: 3),
+            labelRow.leadingAnchor.constraint(equalTo: titleRow.leadingAnchor),
+            labelRow.trailingAnchor.constraint(equalTo: titleRow.trailingAnchor),
             labelRow.heightAnchor.constraint(equalToConstant: 16),
         ])
-        return column
+        return card
     }
 
     private func makeSettingsColumn() -> NSView {
-        let skin = makeSkinSection()
+        let color = makeSkinSection()
+        let size = makeSizeSection()
         let apps = makeAppsSection()
-        let essentials = makeEssentialsSection()
-        let actions = makeActions()
-        let stack = NSStackView(views: [skin, apps, essentials, actions])
+        let stack = NSStackView(views: [color, size, apps])
         stack.orientation = .vertical
         stack.alignment = .width
-        stack.spacing = 12
+        stack.spacing = 10
         stack.distribution = .fill
-        skin.heightAnchor.constraint(equalToConstant: 154).isActive = true
-        apps.heightAnchor.constraint(equalToConstant: 124).isActive = true
-        essentials.heightAnchor.constraint(equalToConstant: 168).isActive = true
-        actions.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        color.heightAnchor.constraint(equalToConstant: 148).isActive = true
+        size.heightAnchor.constraint(equalToConstant: 100).isActive = true
+        apps.heightAnchor.constraint(equalToConstant: 110).isActive = true
         return stack
     }
 
     private func makeSkinSection() -> NSView {
         let card = CardView()
-        let title = sectionTitle("Skin")
+        let title = sectionTitle("Color")
         title.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(title)
         let row = NSStackView()
@@ -225,70 +208,22 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
 
     private func makeAppsSection() -> NSView {
         let card = CardView()
-        let title = sectionTitle("App Ring")
-        let subtitle = NSTextField(labelWithString: "Quick access around Pet")
-        subtitle.font = .systemFont(ofSize: 11)
-        subtitle.textColor = .secondaryLabelColor
+        let title = sectionTitle("Apps")
         let edit = NSButton(title: "Edit Apps…", target: self, action: #selector(editApps))
         edit.bezelStyle = .rounded
         edit.controlSize = .small
-        for item in [title, subtitle, edit, appIcons] { item.translatesAutoresizingMaskIntoConstraints = false; card.addSubview(item) }
+        for item in [title, edit, appIcons] { item.translatesAutoresizingMaskIntoConstraints = false; card.addSubview(item) }
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
             title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
-            subtitle.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 1),
             edit.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            edit.centerYAnchor.constraint(equalTo: title.centerYAnchor, constant: 7),
+            edit.centerYAnchor.constraint(equalTo: title.centerYAnchor),
             appIcons.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
             appIcons.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            appIcons.topAnchor.constraint(equalTo: subtitle.bottomAnchor, constant: 10),
+            appIcons.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
             appIcons.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -10),
         ])
         return card
-    }
-
-    private func makeEssentialsSection() -> NSView {
-        let card = CardView()
-        let title = sectionTitle("Essentials")
-        for toggle in [edgesSwitch, sharingSwitch, loginSwitch] {
-            toggle.target = self
-            toggle.action = #selector(toggleChanged(_:))
-            toggle.controlSize = .small
-            toggle.font = .systemFont(ofSize: 12)
-        }
-        edgesSwitch.tag = 2; sharingSwitch.tag = 3; loginSwitch.tag = 4
-
-        moreSettings.target = self
-        moreSettings.action = #selector(showMoreSettings(_:))
-        moreSettings.bezelStyle = .inline
-        moreSettings.controlSize = .small
-        moreSettings.font = .systemFont(ofSize: 11)
-        let stack = NSStackView(views: [title, edgesSwitch, sharingSwitch, loginSwitch, moreSettings])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.setCustomSpacing(12, after: title)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: card.bottomAnchor, constant: -12),
-        ])
-        return card
-    }
-
-    private func makeActions() -> NSView {
-        let stash = NSButton(title: "Open Stash", target: self, action: #selector(openStash))
-        stash.image = NSImage(systemSymbolName: "tray.full", accessibilityDescription: nil)
-        stash.bezelStyle = .rounded
-        stash.imagePosition = .imageLeading
-        let row = NSStackView(views: [stash])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        return row
     }
 
     private func sectionTitle(_ string: String) -> NSTextField {
@@ -306,9 +241,6 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
             button.setSelected(Coat.allCases[index] == controller.currentCoat)
         }
         appIcons.reload(urls: controller.store.apps)
-        edgesSwitch.state = controller.hugEdges ? .on : .off
-        sharingSwitch.state = controller.hidesFromSharing ? .on : .off
-        loginSwitch.state = controller.opensAtLogin ? .on : .off
     }
 
     @objc private func skinPicked(_ sender: SkinButton) {
@@ -324,75 +256,9 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         room.update(coat: petController?.currentCoat ?? .hojiro, size: value)
     }
 
-    @objc private func toggleChanged(_ sender: NSButton) {
-        let enabled = sender.state == .on
-        switch sender.tag {
-        case 2: petController?.setHugEdges(enabled)
-        case 3: petController?.setHideFromSharing(enabled)
-        case 4: petController?.setOpenAtLogin(enabled)
-        default: break
-        }
-        refresh()
-    }
-
-    @objc private func showMoreSettings(_ sender: NSButton) {
-        guard let controller = petController else { return }
-        let menu = NSMenu()
-        let mood = NSMenuItem(title: "Mood", action: nil, keyEquivalent: "")
-        let moods = NSMenu()
-        for option in Mood.allCases {
-            let item = moods.addItem(withTitle: option.title, action: #selector(selectMood(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = option.rawValue
-            item.state = controller.currentMood == option ? .on : .off
-        }
-        mood.submenu = moods
-        menu.addItem(mood)
-        let quiet = menu.addItem(withTitle: "Quiet hours · 10 PM–8 AM", action: #selector(toggleQuietHours), keyEquivalent: "")
-        quiet.target = self
-        quiet.state = controller.quietHoursEnabled ? .on : .off
-
-        let savedRules = controller.compactAppIdentifiers
-        if !savedRules.isEmpty {
-            menu.addItem(.separator())
-            for id in savedRules {
-                let name = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)?
-                    .deletingPathExtension().lastPathComponent ?? id
-                let item = menu.addItem(withTitle: "Stay small in \(name)", action: #selector(toggleCompactApp(_:)), keyEquivalent: "")
-                item.target = self
-                item.representedObject = id
-                item.state = .on
-            }
-        }
-        if let previousApp, let id = previousApp.bundleIdentifier,
-           id != Bundle.main.bundleIdentifier, !savedRules.contains(id) {
-            let item = menu.addItem(withTitle: "Stay small in \(previousApp.localizedName ?? id)", action: #selector(toggleCompactApp(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = id
-        }
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
-    }
-
-    @objc private func selectMood(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let mood = Mood(rawValue: raw) else { return }
-        petController?.setMood(mood)
-    }
-
-    @objc private func toggleQuietHours() {
-        guard let controller = petController else { return }
-        controller.setQuietHours(!controller.quietHoursEnabled)
-    }
-
-    @objc private func toggleCompactApp(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String, let controller = petController else { return }
-        controller.setCompactForApp(id, enabled: !controller.compactAppIdentifiers.contains(id))
-    }
-
     @objc private func editApps() {
         petController?.showManageApps { [weak self] in self?.refresh() }
     }
-
-    @objc private func openStash() { petController?.showStash() }
 }
 
 private final class CardView: NSVisualEffectView {
@@ -423,7 +289,7 @@ private final class SkinButton: NSButton {
         isBordered = false
         wantsLayer = true
         layer?.cornerRadius = 10
-        setAccessibilityLabel("\(title) skin")
+        setAccessibilityLabel("\(title) color")
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -534,7 +400,7 @@ private final class PetRoomView: NSView {
     override func layout() {
         super.layout()
         pet.frame = NSRect(x: bounds.midX - PetGeometry.viewSize.width / 2,
-                           y: max(36, bounds.height * 0.18),
+                           y: bounds.midY - PetGeometry.viewSize.height / 2,
                            width: PetGeometry.viewSize.width,
                            height: PetGeometry.viewSize.height)
     }
@@ -573,44 +439,29 @@ private final class PetRoomView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let top = dark ? NSColor(red: 0.16, green: 0.18, blue: 0.22, alpha: 1) : NSColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1)
-        let bottom = dark ? NSColor(red: 0.24, green: 0.22, blue: 0.20, alpha: 1) : NSColor(red: 0.96, green: 0.90, blue: 0.82, alpha: 1)
+        let top = dark ? NSColor(red: 0.19, green: 0.22, blue: 0.27, alpha: 1) : NSColor(red: 0.94, green: 0.97, blue: 0.99, alpha: 1)
+        let bottom = dark ? NSColor(red: 0.16, green: 0.18, blue: 0.22, alpha: 1) : NSColor(red: 0.89, green: 0.94, blue: 0.98, alpha: 1)
         NSGradient(starting: top, ending: bottom)?.draw(in: bounds, angle: 90)
+    }
+}
 
-        let floorY = bounds.height * 0.42
-        let floor = NSBezierPath(rect: NSRect(x: 0, y: 0, width: bounds.width, height: floorY))
-        (dark ? NSColor(red: 0.20, green: 0.18, blue: 0.17, alpha: 0.72) : NSColor(red: 0.82, green: 0.70, blue: 0.56, alpha: 0.34)).setFill()
-        floor.fill()
-
-        // Window and sun wash.
-        let windowRect = NSRect(x: 34, y: bounds.height - 190, width: 125, height: 142)
-        let windowPath = NSBezierPath(roundedRect: windowRect, xRadius: 9, yRadius: 9)
-        (dark ? NSColor(red: 0.20, green: 0.28, blue: 0.40, alpha: 0.7) : NSColor(red: 0.78, green: 0.91, blue: 1, alpha: 0.9)).setFill()
-        windowPath.fill()
-        NSColor.white.withAlphaComponent(dark ? 0.18 : 0.72).setStroke()
-        windowPath.lineWidth = 5
-        windowPath.stroke()
-        let muntin = NSBezierPath()
-        muntin.move(to: CGPoint(x: windowRect.midX, y: windowRect.minY)); muntin.line(to: CGPoint(x: windowRect.midX, y: windowRect.maxY))
-        muntin.move(to: CGPoint(x: windowRect.minX, y: windowRect.midY)); muntin.line(to: CGPoint(x: windowRect.maxX, y: windowRect.midY))
-        muntin.lineWidth = 3; muntin.stroke()
-
-        // Shelf, plant and Pet's soft rug.
-        let shelf = NSBezierPath(roundedRect: NSRect(x: bounds.width - 190, y: bounds.height - 150, width: 145, height: 9), xRadius: 4, yRadius: 4)
-        (dark ? NSColor.systemBrown.withAlphaComponent(0.55) : NSColor.systemBrown.withAlphaComponent(0.44)).setFill(); shelf.fill()
-        let pot = NSBezierPath(roundedRect: NSRect(x: bounds.width - 102, y: bounds.height - 141, width: 35, height: 32), xRadius: 7, yRadius: 7)
-        NSColor.systemOrange.withAlphaComponent(0.6).setFill(); pot.fill()
-        NSColor.systemGreen.withAlphaComponent(0.70).setFill()
-        for offset in [CGPoint(x: -14, y: 31), CGPoint(x: 2, y: 39), CGPoint(x: 15, y: 26), CGPoint(x: -2, y: 21)] {
-            NSBezierPath(ovalIn: NSRect(x: bounds.width - 84 + offset.x - 11, y: bounds.height - 111 + offset.y - 9, width: 22, height: 18)).fill()
+enum HomePreview {
+    static func render(to url: URL) {
+        let controller = PetController()
+        let home = PetHomeWindowController(controller: controller)
+        guard let view = home.window?.contentView else { return }
+        view.layoutSubtreeIfNeeded()
+        view.displayIfNeeded()
+        let bounds = view.bounds
+        let scale: CGFloat = 2
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                         pixelsWide: Int(bounds.width * scale), pixelsHigh: Int(bounds.height * scale),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return }
+        rep.size = bounds.size
+        view.cacheDisplay(in: bounds, to: rep)
+        if let png = rep.representation(using: .png, properties: [:]) {
+            try? png.write(to: url)
         }
-        let rug = NSBezierPath(ovalIn: NSRect(x: bounds.midX - 135, y: 34, width: 270, height: 92))
-        (dark ? NSColor.systemBlue.withAlphaComponent(0.16) : NSColor.white.withAlphaComponent(0.60)).setFill(); rug.fill()
-
-        let caption = NSAttributedString(string: "Changes appear on Pet right away", attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor.secondaryLabelColor
-        ])
-        caption.draw(at: CGPoint(x: 18, y: 16))
     }
 }

@@ -31,6 +31,11 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-stash"), i + 1 < Comma
     StashPreview.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
     exit(0)
 }
+if let i = CommandLine.arguments.firstIndex(of: "--render-home"), i + 1 < CommandLine.arguments.count {
+    _ = NSApplication.shared
+    HomePreview.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+    exit(0)
+}
 
 if CommandLine.arguments.contains("--snapshot") {
     DistributedNotificationCenter.default().postNotificationName(Notification.Name("in.vellabs.pet.snapshot"), object: nil, userInfo: nil, deliverImmediately: true)

@@ -9,7 +9,7 @@ and gets out of the way while you work.
   require right-click → Open the first time because the shareable app is signed locally.
 - The dog-face icon appears in the menu bar; there is no Dock icon. Open Pet.app again to show
   Pet home. The menu-bar icon and right-clicking Pet both open the same short menu.
-- In Pet home, turn on "Open at login" if you want it after a restart.
+- Pet home keeps the everyday choices together: color, size and app selection.
 - To rebuild on this Mac, use `./build-app.sh`, then follow `START-HERE.md` to reinstall. Use
   `./build-dmg.sh` to refresh the shareable disk image. Both require Xcode or Command Line Tools.
 
@@ -30,8 +30,7 @@ and gets out of the way while you work.
   Move your cursor near it and it grows back. It stays visible across full-screen app Spaces.
 - **Click** it to poke. **Double-click** to jump to the app you were using before.
 - **Expressions**: its ears, eyes, face and body poses show how it feels. There is no face screen.
-- Right-click menu: Open Pet home, Open Stash, Quit Pet. Skin, size, app choices, and essential
-  preferences live in Pet home. “More settings…” holds mood, quiet hours, and app-specific rules.
+- Right-click menu: Open Pet home, Open Stash, Quit Pet.
 
 ## Permissions
 Automation may be requested for music-app play/pause. Pet does not request microphone access.
