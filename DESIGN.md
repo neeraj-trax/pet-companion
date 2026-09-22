@@ -1,5 +1,7 @@
 # Shark Pet — states & behaviours
 
+> Historical shark-era concept, not current Pet behavior. See `README.md` and `AGENTS.md` for the blue dog app.
+
 A chibi great-white (Hojiro plush style) on your screen edge. The bottom edge is the waterline: most of the time you see only a fin. It comes out when you come to it and gets out of the way while you work.
 
 ## 1. The state machine

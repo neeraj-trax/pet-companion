@@ -36,9 +36,9 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
 
     func show() {
         guard let window else { return }
+        let front = NSWorkspace.shared.frontmostApplication
+        if front?.bundleIdentifier != Bundle.main.bundleIdentifier { previousApp = front }
         if !window.isVisible {
-            let front = NSWorkspace.shared.frontmostApplication
-            if front?.bundleIdentifier != Bundle.main.bundleIdentifier { previousApp = front }
             window.center()
         }
         refresh()

@@ -1,5 +1,7 @@
 # Shark Pet — implementation plan ("Build now")
 
+> Historical shark-era plan, not current implementation guidance. See `README.md` and `AGENTS.md`.
+
 Existing anchors (view coords, 170×170): `bodyCenter (85,74)`, `bodyBottom 28`, `bodyTop 120`, fin tip local y `62+8·earPerk` → view `136…144`. Note: the `// 37 / 111 / 131` comments in `PetGeometry` are stale; real values are 28/120/144.
 
 ## 1. Geometry + pose fields — `PetPose.swift`

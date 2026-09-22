@@ -10,13 +10,18 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
 
     private let collection = StashCollectionView()
     private let hintLabel = NSTextField(labelWithString: "")
-    private let emptyLabel = NSTextField(wrappingLabelWithString: "Drop files on Pet\nto keep them here")
+    private let emptyLabel = NSTextField(wrappingLabelWithString: "Nothing here yet\nDrop a file on Pet to keep it close")
+    private let selectionLabel = NSTextField(labelWithString: "Select a file to preview or remove")
+    private let previewButton = NSButton(title: "Preview", target: nil, action: nil)
+    private let removeButton = NSButton(title: "Remove", target: nil, action: nil)
+    private let undoButton = NSButton(title: "Undo", target: nil, action: nil)
     private var urls: [URL] = []
     private var previewURL: URL?
+    private var undoItems: [StashStore.RemovedItem] = []
     private(set) var isShown = false
 
     init() {
-        super.init(contentRect: CGRect(x: 0, y: 0, width: 430, height: 330),
+        super.init(contentRect: CGRect(x: 0, y: 0, width: 480, height: 390),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
@@ -65,10 +70,10 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
         close.translatesAutoresizingMaskIntoConstraints = false
 
         let layout = NSCollectionViewFlowLayout()
-        layout.itemSize = NSSize(width: 88, height: 104)
+        layout.itemSize = NSSize(width: 98, height: 112)
         layout.minimumInteritemSpacing = 8
         layout.minimumLineSpacing = 10
-        layout.sectionInset = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        layout.sectionInset = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
         collection.collectionViewLayout = layout
         collection.dataSource = self
         collection.delegate = self
@@ -77,7 +82,7 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
         collection.backgroundColors = [.clear]
         collection.register(StashItemView.self, forItemWithIdentifier: Self.itemID)
         collection.setDraggingSourceOperationMask(.copy, forLocal: false)
-        collection.onSingleClick = { [weak self] indexPath in
+        collection.onOpen = { [weak self] indexPath in
             self?.previewItem(at: indexPath)
         }
 
@@ -93,10 +98,36 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
         emptyLabel.alignment = .center
         emptyLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        selectionLabel.font = UI.roundedFont(11, .medium)
+        selectionLabel.textColor = .secondaryLabelColor
+        selectionLabel.lineBreakMode = .byTruncatingTail
+        selectionLabel.translatesAutoresizingMaskIntoConstraints = false
+        for button in [previewButton, removeButton, undoButton] {
+            button.bezelStyle = .rounded
+            button.controlSize = .small
+            button.translatesAutoresizingMaskIntoConstraints = false
+        }
+        previewButton.target = self
+        previewButton.action = #selector(previewSelected)
+        removeButton.target = self
+        removeButton.action = #selector(removeSelected)
+        removeButton.bezelColor = .systemRed
+        removeButton.toolTip = "Moves only the Stash copy to Trash; the original stays where it was"
+        undoButton.target = self
+        undoButton.action = #selector(undoRemoval)
+        undoButton.isHidden = true
+        previewButton.isEnabled = false
+        removeButton.isEnabled = false
+
+        let footer = NSView()
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        for item in [selectionLabel, undoButton, previewButton, removeButton] { footer.addSubview(item) }
+
         background.addSubview(heading)
         background.addSubview(close)
         background.addSubview(scroll)
         background.addSubview(emptyLabel)
+        background.addSubview(footer)
         NSLayoutConstraint.activate([
             heading.topAnchor.constraint(equalTo: background.topAnchor, constant: 16),
             heading.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 18),
@@ -107,20 +138,35 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
             scroll.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 10),
             scroll.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 8),
             scroll.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -8),
-            scroll.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -8),
+            scroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
             emptyLabel.centerXAnchor.constraint(equalTo: scroll.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: scroll.centerYAnchor),
             emptyLabel.widthAnchor.constraint(lessThanOrEqualTo: scroll.widthAnchor, constant: -40),
+            footer.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 18),
+            footer.trailingAnchor.constraint(equalTo: background.trailingAnchor, constant: -18),
+            footer.bottomAnchor.constraint(equalTo: background.bottomAnchor, constant: -12),
+            footer.heightAnchor.constraint(equalToConstant: 30),
+            selectionLabel.leadingAnchor.constraint(equalTo: footer.leadingAnchor),
+            selectionLabel.centerYAnchor.constraint(equalTo: footer.centerYAnchor),
+            selectionLabel.trailingAnchor.constraint(lessThanOrEqualTo: undoButton.leadingAnchor, constant: -6),
+            undoButton.trailingAnchor.constraint(equalTo: previewButton.leadingAnchor, constant: -7),
+            undoButton.centerYAnchor.constraint(equalTo: footer.centerYAnchor),
+            previewButton.trailingAnchor.constraint(equalTo: removeButton.leadingAnchor, constant: -7),
+            previewButton.centerYAnchor.constraint(equalTo: footer.centerYAnchor),
+            removeButton.trailingAnchor.constraint(equalTo: footer.trailingAnchor),
+            removeButton.centerYAnchor.constraint(equalTo: footer.centerYAnchor),
         ])
     }
 
     func reload() {
         urls = StashStore.shared.items
+        collection.selectionIndexPaths = []
         collection.reloadData()
         emptyLabel.isHidden = !urls.isEmpty
         hintLabel.stringValue = urls.isEmpty
             ? "Your portable file shelf"
             : "\(urls.count) \(urls.count == 1 ? "item" : "items") · drag into any app"
+        updateSelection()
     }
 
     func show(near petRect: CGRect, screen: CGRect) {
@@ -144,6 +190,7 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
     func hide() {
         guard isShown else { return }
         isShown = false
+        clearUndo()
         orderOut(nil)
     }
 
@@ -163,6 +210,14 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
         return item
     }
 
+    func collectionView(_ collectionView: NSCollectionView, didSelectItemsAt indexPaths: Set<IndexPath>) {
+        updateSelection()
+    }
+
+    func collectionView(_ collectionView: NSCollectionView, didDeselectItemsAt indexPaths: Set<IndexPath>) {
+        updateSelection()
+    }
+
     func collectionView(_ collectionView: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
         guard urls.indices.contains(indexPath.item) else { return nil }
         return urls[indexPath.item] as NSURL
@@ -171,6 +226,59 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
     func collectionView(_ collectionView: NSCollectionView, draggingSession session: NSDraggingSession,
                         endedAt screenPoint: NSPoint, dragOperation operation: NSDragOperation) {
         if operation.contains(.copy) || operation.contains(.move) { hide() }
+    }
+
+    private var selectedURLs: [URL] {
+        collection.selectionIndexPaths.sorted { $0.item < $1.item }.compactMap { indexPath in
+            urls.indices.contains(indexPath.item) ? urls[indexPath.item] : nil
+        }
+    }
+
+    private func updateSelection() {
+        let count = selectedURLs.count
+        previewButton.isEnabled = count == 1
+        removeButton.isEnabled = count > 0
+        selectionLabel.stringValue = count == 0
+            ? "Select a file to preview or remove"
+            : "\(count) \(count == 1 ? "item" : "items") selected"
+    }
+
+    @objc private func previewSelected() {
+        guard let selected = collection.selectionIndexPaths.first else { return }
+        previewItem(at: selected)
+    }
+
+    @objc private func removeSelected() {
+        let selected = selectedURLs
+        guard !selected.isEmpty else { return }
+        let removed = StashStore.shared.removeFromStash(selected)
+        if let previewURL, removed.contains(where: { $0.originalURL == previewURL }) {
+            self.previewURL = nil
+            if let panel = QLPreviewPanel.shared(), panel.isVisible { panel.orderOut(nil) }
+        }
+        reload()
+        guard !removed.isEmpty else {
+            selectionLabel.stringValue = "Couldn’t remove these items"
+            return
+        }
+        undoItems.append(contentsOf: removed)
+        undoButton.isHidden = !undoItems.contains { $0.trashedURL != nil }
+        selectionLabel.stringValue = removed.count == selected.count
+            ? "Moved \(removed.count) to Trash"
+            : "Moved \(removed.count); \(selected.count - removed.count) couldn’t be removed"
+    }
+
+    @objc private func undoRemoval() {
+        let restored = StashStore.shared.restore(undoItems)
+        clearUndo()
+        reload()
+        selectionLabel.stringValue = restored > 0 ? "Restored \(restored) to Stash" : "Couldn’t restore; check Trash"
+    }
+
+    private func clearUndo() {
+        undoItems = []
+        undoButton.isHidden = true
+        updateSelection()
     }
 
     // MARK: Quick Look
@@ -197,6 +305,10 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
 
     func previewImage(scale: CGFloat = 2) -> NSImage? {
         reload()
+        if ProcessInfo.processInfo.environment["PET_STASH_RENDER_SELECTED"] == "1", !urls.isEmpty {
+            collection.selectionIndexPaths = [IndexPath(item: 0, section: 0)]
+            updateSelection()
+        }
         contentView?.layoutSubtreeIfNeeded()
         guard let view = contentView else { return nil }
         view.displayIfNeeded()
@@ -213,10 +325,10 @@ final class StashPanel: NSPanel, NSCollectionViewDataSource, NSCollectionViewDel
     }
 }
 
-/// Keeps item gestures out of the panel's background drag region. A normal click previews;
-/// moving past the drag threshold remains a standard NSCollectionView file drag.
+/// Keeps item gestures out of the panel's background drag region. A click selects,
+/// a double-click previews, and moving past the threshold remains a file drag.
 private final class StashCollectionView: NSCollectionView {
-    var onSingleClick: ((IndexPath) -> Void)?
+    var onOpen: ((IndexPath) -> Void)?
     private var pressedItem: IndexPath?
     private var pressPoint = NSPoint.zero
     private var moved = false
@@ -241,8 +353,9 @@ private final class StashCollectionView: NSCollectionView {
         let clickedItem = pressedItem
         super.mouseUp(with: event)
         defer { pressedItem = nil }
-        guard !moved, let clickedItem, indexPathForItem(at: point) == clickedItem else { return }
-        onSingleClick?(clickedItem)
+        guard !moved, event.clickCount >= 2, let clickedItem,
+              indexPathForItem(at: point) == clickedItem else { return }
+        onOpen?(clickedItem)
     }
 }
 
@@ -261,46 +374,56 @@ private final class StashItemView: NSCollectionViewItem {
         if type?.conforms(to: .image) == true, let preview = NSImage(contentsOf: url) {
             icon = preview
         } else {
-            let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-            let symbol: String
-            if isFolder { symbol = "folder.fill" }
-            else if type?.conforms(to: .text) == true { symbol = "doc.text.fill" }
-            else if url.pathExtension.lowercased() == "webloc" { symbol = "link" }
-            else { symbol = "doc.fill" }
-            icon = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-                ?? NSWorkspace.shared.icon(forFile: url.path)
+            icon = NSWorkspace.shared.icon(forFile: url.path)
         }
         icon.size = NSSize(width: 54, height: 54)
-        (view as? StashItemBackgroundView)?.configure(
-            icon: icon,
-            name: FileManager.default.displayName(atPath: url.path)
-        )
+        let name = FileManager.default.displayName(atPath: url.path)
+        let kind = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            ? "FOLDER" : (url.pathExtension.isEmpty ? "FILE" : url.pathExtension.uppercased())
+        (view as? StashItemBackgroundView)?.configure(icon: icon, name: name, kind: kind)
         view.toolTip = url.lastPathComponent
+        view.setAccessibilityElement(true)
+        view.setAccessibilityLabel(name)
     }
 }
 
 private final class StashItemBackgroundView: NSView {
     private var fileIcon: NSImage?
     private var fileName = ""
+    private var fileKind = ""
+    private var hovered = false { didSet { needsDisplay = true } }
+    private var hoverArea: NSTrackingArea?
     var selected = false { didSet { needsDisplay = true } }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    func configure(icon: NSImage, name: String) {
+    func configure(icon: NSImage, name: String, kind: String) {
         fileIcon = icon
         fileName = name
+        fileKind = kind
+        hovered = false
         needsDisplay = true
     }
 
+    override func updateTrackingAreas() {
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        hoverArea = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
+        if let hoverArea { addTrackingArea(hoverArea) }
+        super.updateTrackingAreas()
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovered = true }
+    override func mouseExited(with event: NSEvent) { hovered = false }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        if selected {
-            NSColor.selectedContentBackgroundColor.withAlphaComponent(0.32).setFill()
-            NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 12, yRadius: 12).fill()
-        }
+        let tile = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 12, yRadius: 12)
+        (selected ? NSColor.selectedContentBackgroundColor.withAlphaComponent(0.42)
+                  : NSColor.labelColor.withAlphaComponent(hovered ? 0.12 : 0.06)).setFill()
+        tile.fill()
         if let fileIcon {
-            let target = CGRect(x: (bounds.width - 54) / 2, y: 40, width: 54, height: 54)
+            let target = CGRect(x: (bounds.width - 56) / 2, y: 48, width: 56, height: 56)
             let scale = min(target.width / max(1, fileIcon.size.width), target.height / max(1, fileIcon.size.height))
             let size = CGSize(width: fileIcon.size.width * scale, height: fileIcon.size.height * scale)
             let fitted = CGRect(x: target.midX - size.width / 2, y: target.midY - size.height / 2,
@@ -315,7 +438,12 @@ private final class StashItemBackgroundView: NSView {
             .font: UI.roundedFont(11, .medium),
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraph,
-        ]).draw(in: CGRect(x: 3, y: 10, width: bounds.width - 6, height: 18))
+        ]).draw(in: CGRect(x: 5, y: 23, width: bounds.width - 10, height: 18))
+        NSAttributedString(string: fileKind, attributes: [
+            .font: UI.roundedFont(9, .medium),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraph,
+        ]).draw(in: CGRect(x: 5, y: 8, width: bounds.width - 10, height: 13))
     }
 }
 

@@ -1275,14 +1275,7 @@ final class PetController: NSObject, NSMenuDelegate {
         menu.addItem(withTitle: "Quit Pet", action: #selector(quit), keyEquivalent: "q").target = self
     }
 
-    @objc private func addShortcutAction() { addShortcut() }
     @objc private func openHome() { showHome() }
-    @objc private func manageApps() {
-        launchPanel.hide()
-        let controller = ManageAppsWindowController.shared
-        controller.onChange = { [weak self] in self?.launchPanel.reload() }
-        controller.show()
-    }
     @objc private func openStash() {
         if launchPanel.isShown { launchPanel.hide() }
         stashPanel.show(near: hitRectOnScreen, screen: currentScreen.visibleFrame)
@@ -1313,27 +1306,7 @@ final class PetController: NSObject, NSMenuDelegate {
         }
     }
 
-    @objc private func pickCoat(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let coat = Coat(rawValue: raw) else { return }
-        pose.coat = coat
-        UserDefaults.standard.set(raw, forKey: Keys.coat)
-        pulse(amount: 0.12, duration: 0.35)
-        spawnBubbles(2)
-    }
-
-    @objc private func pickMood(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let m = Mood(rawValue: raw) else { return }
-        mood = m
-        UserDefaults.standard.set(raw, forKey: Keys.mood)
-        think(m == .chatty ? "yay" : (m == .shy ? "…" : "ok"), for: 1.5)
-    }
-
-    @objc private func toggleQuiet() {
-        quietHours.toggle()
-        UserDefaults.standard.set(quietHours, forKey: Keys.quiet)
-    }
-
-    @objc private func shhHour() {
+    private func shhHour() {
         if time < shhUntil {
             shhUntil = 0
             if isMini { grow(fast: false, openPanel: false) }
@@ -1344,39 +1317,7 @@ final class PetController: NSObject, NSMenuDelegate {
         if edge == .bottom && hugEdges { startStroll(.shh) } else if state == .idle { startNap() }
     }
 
-    @objc private func toggleDiveApp(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        if diveApps.contains(id) { diveApps.remove(id) } else { diveApps.insert(id) }
-        UserDefaults.standard.set(Array(diveApps), forKey: Keys.diveApps)
-    }
-
-    @objc private func swimNow() {
-        if edge == .left || edge == .right {
-            edge = .bottom
-            mini = 0
-            setOrigin(edgeTarget(for: .bottom, in: currentScreen.visibleFrame, from: origin))
-        }
-        if state == .napping { wake() }
-        startStroll(.menu)
-    }
-
-    @objc private func napNow() {
-        if launchPanel.isShown { launchPanel.hide() }
-        if isMini { grow(fast: false, openPanel: false); return }
-        startNap()
-    }
-
-    /// Called when Pet.app is opened again while already running: make it obvious where it is.
-    func showYourself() {
-        if state == .napping { wake() }
-        shhUntil = 0
-        if launchPanel.isShown { launchPanel.hide() }
-        welcomeUntil = time + 2.5
-        thinkLater("here! ◠‿◠", after: 0.9, for: 2.5)
-        comeHere()
-    }
-
-    @objc func comeHere() {
+    private func comeHere() {
         let mouse = NSEvent.mouseLocation
         if isMini {
             pendingComeHere = mouse
@@ -1400,48 +1341,6 @@ final class PetController: NSObject, NSMenuDelegate {
         if launchPanel.isShown { launchPanel.hide() }
         state = .landing
         stateTime = 0
-    }
-
-    @objc private func toggleHug() {
-        hugEdges.toggle()
-        UserDefaults.standard.set(hugEdges, forKey: Keys.hugEdges)
-        if hugEdges {
-            release()
-        } else {
-            if isMini { grow(fast: true, openPanel: false) }
-            edge = .free
-            savePosition()
-        }
-    }
-
-    @objc private func toggleLogin() {
-        let service = SMAppService.mainApp
-        do {
-            switch service.status {
-            case .enabled:
-                try service.unregister()
-                think("ok", for: 2)
-            case .requiresApproval:
-                think("allow me in Login Items", for: 4)
-                SMAppService.openSystemSettingsLoginItems()
-            default:
-                try service.register()
-                if service.status == .requiresApproval {
-                    think("allow me in Login Items", for: 4)
-                    SMAppService.openSystemSettingsLoginItems()
-                } else {
-                    think("see you tomorrow", for: 2)
-                }
-            }
-        } catch {
-            think("hm? couldn't", for: 2.5)
-        }
-    }
-
-    @objc private func toggleSharing() {
-        hideFromSharing.toggle()
-        UserDefaults.standard.set(hideFromSharing, forKey: Keys.sharing)
-        applySharing()
     }
 
     @objc private func quit() {
@@ -1637,7 +1536,7 @@ final class PetController: NSObject, NSMenuDelegate {
         for _ in 0..<60 { step(10); seen.insert("\(state)") }
         expect([State.idle, .napping, .strolling, .wandering, .shrinking, .growing].contains(state), "sane state after 10 min")
         print("selftest: states seen in 10 min:", seen.sorted())
-        toggleHug(); step(2); toggleHug(); step(3)
+        setHugEdges(false); step(2); setHugEdges(true); step(3)
         expect(state != .dragging, "hug toggle round trip")
         if isMini { grow(fast: true, openPanel: false); step(1) }
         edge = .bottom; mini = 0

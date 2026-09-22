@@ -4,7 +4,7 @@ Read this first. It tells you what the app is, how the code is laid out, what ea
 
 ## What it is
 
-A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. When you are busy it shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip. Automation permission may be requested for play/pause.
+A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. A click selects an item, double-click or Preview opens Quick Look, and Remove moves only the Stash copy to Trash with Undo until the shelf closes. When you are busy Pet shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip. Automation permission may be requested for play/pause.
 
 Opening Pet.app again, or choosing **Open Pet home…** from either menu, opens the native Pet home/settings window. Its first version keeps a live room preview, six skins, a persistent 85–115% size control, current app-ring choices with an Edit Apps shortcut, edge/privacy/login essentials, and a direct Stash button. Changes apply immediately and save automatically. Mood, quiet hours, and saved app-specific compact rules remain reachable through the small “More settings…” menu so existing preferences are not stranded.
 
@@ -36,6 +36,7 @@ Headless checks (there is no screenshot access for agents; use these):
 .build/release/Pet --render-ring-appear build/a.png    # frames of the ring pop-in
 .build/release/Pet --render-ring-corners build/c.png   # ring fitted in screen corners/edges
 .build/release/Pet --render-stash build/stash.png      # floating draggable file shelf
+PET_STASH_RENDER_SELECTED=1 .build/release/Pet --render-stash build/stash-selected.png # selection controls
 .build/release/Pet --render-icon build/icon.png        # app icon
 ```
 
@@ -59,8 +60,8 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 | `ManageAppsWindow.swift` | "Manage apps…" window: add / remove / reorder | |
 | `PetHomeWindow.swift` | main Pet home/settings window, live preview, skins, size, apps and essential controls | |
 | `ShortcutStore.swift` | pinned app list, JSON | |
-| `StashStore.swift` | saving dropped files/images/links/text | files copied off the main thread |
-| `StashPanel.swift` | floating Stash shelf, file previews and drag-out | nonactivating; stays over full-screen apps |
+| `StashStore.swift` | saving dropped files/images/links/text; moving Stash copies to Trash and restoring them | files copied off the main thread |
+| `StashPanel.swift` | floating Stash shelf, selection, preview, drag-out, Remove/Undo | nonactivating; stays over full-screen apps |
 | `MusicWatcher.swift` | Spotify / Apple Music now-playing via distributed notifications | |
 | `MicWatcher.swift` | dormant microphone reaction code, not instantiated or permissioned | Keep dormant until a future character behavior needs it. |
 | `UI.swift` | shared font/colour helpers | |
@@ -73,7 +74,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 
 **Triggers that make it small:** idle chance (mood), steady typing for 60–90 s, 15 min in one app, and app-specific compact rules. “More settings…” in Pet home lets the owner manage the last of these without filling the main view. The simple menus do not offer manual stroll, Shh, or nap. It never grows back on its own while the mouse is still. Full-screen apps do not hide it; Pet stays visible when the user swipes between Spaces.
 
-**Interactions:** click = poke (jump). Double-click = switch to the app you used before the current one. Drop = save to Stash. The Stash ring chip opens a nonactivating shelf; click an item for a Quick Look preview or drag it into any app. Item gestures never move the shelf window. Right-click = menu. The old "Keep clipboard" ring chip and menu action were removed because their save-only behavior was unclear and duplicated the drop flow.
+**Interactions:** click = poke (jump). Double-click = switch to the app you used before the current one. Drop = save to Stash. The Stash ring chip opens a nonactivating shelf; single-click selects, double-click or Preview opens Quick Look, drag sends a file into another app, and Remove moves selected Stash copies to Trash. Undo restores the recent removals until the shelf closes. Item gestures never move the shelf window. Right-click = menu. The old "Keep clipboard" ring chip and menu action were removed because their save-only behavior was unclear and duplicated the drop flow.
 
 **Pet home/settings.** The menu bar menu and Pet's right-click menu contain only “Open Pet home…”, “Open Stash”, and “Quit Pet”. Reopening Pet.app also opens home. Pet home contains skin, size, app choices, edge placement, screenshot privacy, login startup, and Stash. “More settings…” holds mood, quiet hours, and app-specific compact rules that might already be saved. `PetHomeWindowController` calls the public setting methods on `PetController`, so the desktop character updates live. The size setting is stored as `pet.displayScale`; valid values are clamped to 0.85–1.15 and scale around the feet so Pet stays on the same screen edge. Hit-testing, ring placement and edge fitting use the scaled silhouette too. The home window returns focus to the previously active app when it closes.
 
@@ -104,6 +105,8 @@ The project is in a synced Documents folder, which can add Finder/file-provider 
 On 2026-09-23 the dog stability pass verified `swift build -c release`, self-test, pose/ring/corner/Stash/icon renders, app bundling, DMG checksum, installed signature, and a fresh running-app snapshot. Blink remains a standing pose, nap starts curled up, the menu-bar icon depicts the dog, and old shark wording is gone from the live menu. Git push to the configured private GitHub remote was rejected by automatic approval review because ownership/trust of that exact remote is unverified; do not retry without the owner's explicit authorization for the exact destination.
 
 The subsequent interface pass shortened both the menu-bar and right-click menus to Pet home, Stash, and Quit. Pet home now shows only skin, app ring, size, Stash, and three essentials (edge hugging, screenshot privacy, login startup); an unobtrusive “More settings…” menu keeps mood, quiet hours, and saved app-specific compact rules editable. The 2026-09-23 build passed self-test, pose/ring renders, installed signature, live UI inspection, running-app snapshot, and the refreshed DMG checksum.
+
+The next code/UI pass fixed Pet home's return-focus tracking when an already-open window is brought forward and removed unused handlers left by the menu simplification. The Stash shelf now has readable file tiles, selection, explicit Preview and Remove actions, and inline Undo. `StashStore.removeFromStash` only accepts direct children of the Stash folder and uses macOS Trash; a temporary hidden-file check exercised remove and restore and verified that a file outside Stash cannot be removed, without touching user items. The debug Stash renderer accepts `PET_STASH_RENDER_SELECTED=1` to show the selected state. Final release build and self-test passed; pose, ring, icon, default Stash, and selected Stash renders were inspected. The DMG checksum, bundled dog atlas, installed app signature, and fresh running-app snapshot were verified.
 
 ## Known gaps / ideas not built
 

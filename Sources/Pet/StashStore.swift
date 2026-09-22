@@ -1,7 +1,12 @@
 import AppKit
 
-/// Things you drop on the shark get saved here: ~/Library/Application Support/Pet/Stash
+/// Things you drop on Pet get saved here: ~/Library/Application Support/Pet/Stash
 final class StashStore {
+    struct RemovedItem {
+        let originalURL: URL
+        let trashedURL: URL?
+    }
+
     static let shared = StashStore()
     let folder: URL
     private let maxFolderBytes: Int64 = 500 * 1024 * 1024
@@ -27,6 +32,40 @@ final class StashStore {
             let b = (try? $1.resourceValues(forKeys: keys).contentModificationDate) ?? .distantPast
             return a > b
         }
+    }
+
+    /// Move only copies directly inside Stash to the macOS Trash. The original source is untouched.
+    func removeFromStash(_ urls: [URL]) -> [RemovedItem] {
+        let fm = FileManager.default
+        let stashFolder = folder.standardizedFileURL
+        var removed: [RemovedItem] = []
+        for url in urls {
+            guard url.standardizedFileURL.deletingLastPathComponent() == stashFolder else { continue }
+            var trashed: NSURL?
+            do {
+                try fm.trashItem(at: url, resultingItemURL: &trashed)
+                removed.append(RemovedItem(originalURL: url, trashedURL: trashed as URL?))
+            } catch {
+                continue
+            }
+        }
+        return removed
+    }
+
+    /// Put recently removed copies back. A new name is used if another item claimed the old one.
+    func restore(_ removed: [RemovedItem]) -> Int {
+        let fm = FileManager.default
+        var restored = 0
+        for item in removed {
+            guard let trashedURL = item.trashedURL else { continue }
+            do {
+                try fm.moveItem(at: trashedURL, to: unique(item.originalURL.lastPathComponent))
+                restored += 1
+            } catch {
+                continue
+            }
+        }
+        return restored
     }
 
     private func stamp() -> String {
