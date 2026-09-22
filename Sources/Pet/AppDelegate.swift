@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             image.isTemplate = true
             button.image = image
-            button.toolTip = "Pet — click for the menu. 'Come here' brings the shark back"
+            button.toolTip = "Pet — settings, apps and Stash"
         }
         let menu = NSMenu()
         menu.delegate = controller
@@ -40,9 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.savePosition()
     }
 
-    /// Double-clicking Pet.app again while it runs brings the shark to you.
+    /// Opening Pet.app again brings up the home/settings window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        controller.showYourself()
+        controller.showHome()
         return false
     }
 }

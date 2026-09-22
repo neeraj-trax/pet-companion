@@ -33,6 +33,7 @@ struct PetPose {
     var thought: String = ""         // glyph shown in a little thought bubble
     var thoughtAlpha: CGFloat = 0
     var coat: Coat = .hojiro
+    var displayScale: CGFloat = 1     // persistent user size, independent of the temporary compact stroll scale
     var submerged: CGFloat = 0       // 1 = only the fin shows above the "water" (screen edge)
     var waterline: CGFloat = -1000   // view-space y of the screen edge while submerged
     var chomp: CGFloat = 0           // 0 closed-ish ... 1 wide open snap
@@ -55,7 +56,7 @@ struct SpriteTone { var hue: CGFloat; var sat: CGFloat; var val: CGFloat }
 
 /// Skins the user can pick. `body`/`shade` colour the ripples and particles; `spriteTones` recolours the sprite
 /// (body, screen-glyph accent, face-panel hue). nil = the atlas's original blue.
-enum Coat: String, CaseIterable {
+enum Coat: String, CaseIterable, Hashable {
     case sand, hojiro, deep, sakura, mint, charcoal
     var title: String {
         switch self {

@@ -6,6 +6,8 @@ Read this first. It tells you what the app is, how the code is laid out, what ea
 
 A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. When you are busy it shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip; while you speak on a call, sound bars show on its TV face. No permissions are required except Microphone (asked once, only when a call is already using the mic) and Automation for play/pause (asked once).
 
+Opening Pet.app again, or choosing **Open Pet home…** from either menu, opens the native Pet home/settings window. It has a live room preview, six skins, a persistent 85–115% size control, the current app-ring choices with an Edit Apps shortcut, mood and quiet-hours controls, edge/privacy/login options, plus direct Stash and Permissions buttons. Changes apply immediately and save automatically.
+
 Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget, never distracting during work.
 
 - Native Swift + AppKit, no Xcode project, no dependencies. `swift build` compiles it.
@@ -51,6 +53,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 | `RingPanel.swift` | the app ring: `RingPanel` (window, fitting, show/hide) + `RingView` (drawing, magnification, clicks) + `RingConfig` (all tunable numbers) | |
 | `RingLayout.swift` | ring geometry math + `RingPreview` debug renderers | |
 | `ManageAppsWindow.swift` | "Manage apps…" window: add / remove / reorder | |
+| `PetHomeWindow.swift` | main Pet home/settings window, live preview, skins, size, apps and behavior controls | |
 | `ShortcutStore.swift` | pinned app list, JSON | |
 | `StashStore.swift` | saving dropped files/images/links/text | files copied off the main thread |
 | `StashPanel.swift` | floating Stash shelf, file previews and drag-out | nonactivating; stays over full-screen apps |
@@ -67,6 +70,8 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 **Triggers that make it small:** idle chance (mood), steady typing for 60–90 s, 15 min in one app, "Shh for an hour", "Dive while <app> is in front". It never grows back on its own while the mouse is still. Full-screen apps do not hide it; Pet stays visible when the user swipes between Spaces.
 
 **Interactions:** click = poke (jump). Double-click = switch to the app you used before the current one. Drop = save to Stash. The Stash ring chip opens a nonactivating shelf; click an item for a Quick Look preview or drag it into any app. Item gestures never move the shelf window. Right-click = menu. The old "Keep clipboard" ring chip and menu action were removed because their save-only behavior was unclear and duplicated the drop flow.
+
+**Pet home/settings.** The menu bar menu and Pet's right-click menu both start with “Open Pet home…”. Reopening Pet.app also opens it. `PetHomeWindowController` calls the public setting methods on `PetController`, so the desktop character updates live. The size setting is stored as `pet.displayScale`; valid values are clamped to 0.85–1.15 and scale around the feet so Pet stays on the same screen edge. Hit-testing, ring placement and edge fitting use the scaled silhouette too. The home window returns focus to the previously active app when it closes.
 
 **Expressions:** short texts (`pose.thought`) are drawn on the character's TV face by the view (panel colours sampled from the atlas per skin), not in a bubble. `pose.listening` draws sound bars there while the user speaks. `MicWatcher` only opens the mic while some other app already has it open (a call), measures RMS with an adaptive noise floor, and needs Microphone permission once (`NSMicrophoneUsageDescription` is in Info.plist).
 
@@ -102,5 +107,5 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 - Drops from Chrome/Photos that arrive as file promises are not received (only real files, images, links, text).
 - Multi-monitor: edge logic uses the screen under the character; seams between monitors are avoided but not heavily tested.
 - Reduce Motion: wander/hop are suppressed; the ring animation is not yet reduced.
-- Ideas from `DESIGN.md` still open: size options, accessories, naming the pet, cloud/AI job status, "hold a file over the pet then drop on an app".
+- Ideas from `DESIGN.md` still open: accessories, naming the pet, cloud/AI job status, "hold a file over the pet then drop on an app".
 - `DESIGN.md` / `PLAN.md` describe the shark-era design; the state names and the hide behaviour come from there.

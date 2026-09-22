@@ -74,6 +74,12 @@ final class PetView: NSView {
             drawRipples(ctx, p)
         }
 
+        // User-selected size grows and shrinks around the feet, so Pet keeps standing on
+        // the same screen edge instead of floating when the setting changes.
+        ctx.translateBy(x: c.x, y: bottom)
+        ctx.scaleBy(x: p.displayScale, y: p.displayScale)
+        ctx.translateBy(x: -c.x, y: -bottom)
+
         if p.shadow > 0.01 && p.submerged < 0.5 {
             let w = 70 * p.squashX
             let rect = CGRect(x: c.x - w / 2, y: bottom - 6, width: w, height: 10)

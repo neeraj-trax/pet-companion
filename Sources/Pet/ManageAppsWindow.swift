@@ -1,7 +1,7 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// "Shark's apps": a small window listing the pinned apps, with drag-to-reorder, + and −.
+/// Pet's apps: a small window listing the pinned apps, with drag-to-reorder, + and −.
 /// Every change is saved straight to ShortcutStore and reported through `onChange`.
 final class ManageAppsWindowController: NSWindowController, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate {
     static let shared = ManageAppsWindowController()
@@ -19,7 +19,7 @@ final class ManageAppsWindowController: NSWindowController, NSWindowDelegate, NS
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 420),
                               styleMask: [.titled, .closable, .resizable, .miniaturizable],
                               backing: .buffered, defer: false)
-        window.title = "Shark's apps"
+        window.title = "Pet's apps"
         window.minSize = NSSize(width: 300, height: 260)
         window.isReleasedWhenClosed = false
         window.center()
@@ -94,7 +94,7 @@ final class ManageAppsWindowController: NSWindowController, NSWindowDelegate, NS
             b.heightAnchor.constraint(equalToConstant: 24).isActive = true
         }
 
-        let hint = NSTextField(labelWithString: "Rest the cursor on the shark to open the ring")
+        let hint = NSTextField(labelWithString: "Rest the cursor on Pet to open the ring")
         hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         hint.textColor = .secondaryLabelColor
         hint.lineBreakMode = .byTruncatingTail
@@ -136,7 +136,7 @@ final class ManageAppsWindowController: NSWindowController, NSWindowDelegate, NS
     @objc private func addApps() {
         guard let window else { return }
         let panel = NSOpenPanel()
-        panel.message = "Pick apps to keep in your shark's pocket"
+        panel.message = "Pick apps for Pet's ring"
         panel.prompt = "Add"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false

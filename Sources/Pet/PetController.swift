@@ -28,6 +28,7 @@ final class PetController: NSObject, NSMenuDelegate {
     let store = ShortcutStore.shared
     let music = MusicWatcher()
     let mic = MicWatcher()
+    private var homeWindow: PetHomeWindowController?
     private var musicNoteIn: TimeInterval = 20
 
     private var pose = PetPose()
@@ -44,6 +45,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private var hideFromSharing = false
     private var mood: Mood = .normal
     private var quietHours = false
+    private(set) var petScale: CGFloat = 1
     private var shhUntil: TimeInterval = 0
     private var diveApps: Set<String> = []
 
@@ -146,11 +148,19 @@ final class PetController: NSObject, NSMenuDelegate {
     private enum Keys {
         static let x = "pet.origin.x", y = "pet.origin.y", edge = "pet.edge", hugEdges = "pet.hugEdges", coat = "pet.coat"
         static let sharing = "pet.hideFromSharing", mood = "pet.mood", quiet = "pet.quietHours", underwater = "pet.underwater"
-        static let diveApps = "pet.diveApps", firstRun = "pet.firstRunDone", pillHint = "pet.pillHintShown"
+        static let diveApps = "pet.diveApps", firstRun = "pet.firstRunDone", pillHint = "pet.pillHintShown", size = "pet.displayScale"
     }
     private var saidBrb = false
     private var selfTesting = false
     private var pendingThoughts: [(TimeInterval, String, TimeInterval)] = []
+
+    var currentCoat: Coat { pose.coat }
+    var currentMood: Mood { mood }
+    var quietHoursEnabled: Bool { quietHours }
+    var hidesFromSharing: Bool { hideFromSharing }
+    var opensAtLogin: Bool {
+        Bundle.main.bundleIdentifier != nil && Bundle.main.bundlePath.hasSuffix(".app") && SMAppService.mainApp.status == .enabled
+    }
 
     override init() {
         super.init()
@@ -162,6 +172,9 @@ final class PetController: NSObject, NSMenuDelegate {
         hideFromSharing = d.bool(forKey: Keys.sharing)
         mood = Mood(rawValue: d.string(forKey: Keys.mood) ?? "") ?? .normal
         quietHours = d.bool(forKey: Keys.quiet)
+        let savedScale = CGFloat((d.object(forKey: Keys.size) as? NSNumber)?.doubleValue ?? 1)
+        petScale = (0.85...1.15).contains(savedScale) ? savedScale : 1
+        pose.displayScale = petScale
         diveApps = Set(d.stringArray(forKey: Keys.diveApps) ?? [])
         applySharing()
         launchPanel.onLaunch = { [weak self] url in self?.launch(url) }
@@ -296,7 +309,8 @@ final class PetController: NSObject, NSMenuDelegate {
     private func setOrigin(_ p: CGPoint) { window.setFrameOrigin(CGPoint(x: (p.x * 2).rounded() / 2, y: (p.y * 2).rounded() / 2)) }
 
     var bodyCenterOnScreen: CGPoint {
-        CGPoint(x: origin.x + PetGeometry.bodyCenter.x, y: origin.y + PetGeometry.bodyCenter.y)
+        let y = PetGeometry.bodyBottom + (PetGeometry.bodyCenter.y - PetGeometry.bodyBottom) * petScale
+        return CGPoint(x: origin.x + PetGeometry.bodyCenter.x, y: origin.y + y)
     }
     private var refPoint: CGPoint { bodyCenterOnScreen }
     private var typing: Bool { keyIdle < 3 }
@@ -317,30 +331,40 @@ final class PetController: NSObject, NSMenuDelegate {
     /// True when a screen point is on the shark's visible silhouette.
     func petContains(_ point: CGPoint) -> Bool {
         let local = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
-        guard PetGeometry.hitPath(bob: pose.bob, facing: pose.facing, squashX: pose.squashX, squashY: pose.squashY).contains(local) else { return false }
+        guard scaledHitPath().contains(local) else { return false }
         return currentScreen.visibleFrame.insetBy(dx: -2, dy: -2).contains(point)
     }
 
     var hitRectOnScreen: CGRect {
-        let full = PetGeometry.hitPath(bob: pose.bob, facing: pose.facing, squashX: pose.squashX, squashY: pose.squashY)
+        let full = scaledHitPath()
             .boundingBox.offsetBy(dx: origin.x, dy: origin.y)
         let visible = full.intersection(currentScreen.visibleFrame.insetBy(dx: -2, dy: -2))
         return visible.isNull ? full : visible
     }
 
+    private func scaledHitPath() -> CGPath {
+        let path = PetGeometry.hitPath(bob: pose.bob, facing: pose.facing, squashX: pose.squashX, squashY: pose.squashY)
+        var transform = CGAffineTransform(translationX: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom)
+            .scaledBy(x: petScale, y: petScale)
+            .translatedBy(x: -PetGeometry.bodyCenter.x, y: -PetGeometry.bodyBottom)
+        return path.copy(using: &transform) ?? path
+    }
+
     private func edgeTarget(for edge: ScreenEdge, in f: CGRect, from o: CGPoint) -> CGPoint {
         let g = PetGeometry.self
-        let minX = f.minX - g.bodyCenter.x + g.bodyHalfWidth + 4
-        let maxX = f.maxX - g.bodyCenter.x - g.bodyHalfWidth - 4
+        let scaledHalfWidth = g.bodyHalfWidth * petScale
+        let scaledTop = g.bodyBottom + (g.earTop - g.bodyBottom) * petScale
+        let minX = f.minX - g.bodyCenter.x + scaledHalfWidth + 4
+        let maxX = f.maxX - g.bodyCenter.x - scaledHalfWidth - 4
         let minY = f.minY - g.bodyBottom + 6      // feet 6pt above the edge: legs never crop
-        let maxY = f.maxY - g.earTop - 2
+        let maxY = f.maxY - scaledTop - 2
         func cx(_ x: CGFloat) -> CGFloat { min(max(x, minX), maxX) }
         func cy(_ y: CGFloat) -> CGFloat { min(max(y, minY), maxY) }
         switch edge {
         case .bottom: return CGPoint(x: cx(o.x), y: minY)
         case .top:    return CGPoint(x: cx(o.x), y: maxY)
-        case .left:   return CGPoint(x: minX + 8 - (g.bodyHalfWidth * 2 - 16) * (1 - peek), y: cy(o.y))
-        case .right:  return CGPoint(x: maxX - 8 + (g.bodyHalfWidth * 2 - 16) * (1 - peek), y: cy(o.y))
+        case .left:   return CGPoint(x: minX + 8 - (scaledHalfWidth * 2 - 16) * (1 - peek), y: cy(o.y))
+        case .right:  return CGPoint(x: maxX - 8 + (scaledHalfWidth * 2 - 16) * (1 - peek), y: cy(o.y))
         case .free:   return CGPoint(x: cx(o.x), y: cy(o.y))
         }
     }
@@ -572,7 +596,7 @@ final class PetController: NSObject, NSMenuDelegate {
         if time > peekUntil {
             peekChangeIn -= dt
             if peekChangeIn <= 0 {
-                if let r = periscopeCheckIn, !typing, mouseStillFor < 60 {
+                if periscopeCheckIn != nil, !typing, mouseStillFor < 60 {
                     peekUntil = time + Double.random(in: 1.2...2.5)
                     peekTarget = 0.55
                     blinkT = 0
@@ -1245,6 +1269,8 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     private func populate(_ menu: NSMenu) {
+        menu.addItem(withTitle: "Open Pet home…", action: #selector(openHome), keyEquivalent: ",").target = self
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Add app shortcut…", action: #selector(addShortcutAction), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Manage apps…", action: #selector(manageApps), keyEquivalent: "").target = self
         let n = StashStore.shared.count
@@ -1310,6 +1336,7 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func addShortcutAction() { addShortcut() }
+    @objc private func openHome() { showHome() }
     @objc private func manageApps() {
         launchPanel.hide()
         let controller = ManageAppsWindowController.shared
@@ -1327,7 +1354,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let previous = NSWorkspace.shared.frontmostApplication
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
-        panel.message = "Pick apps to keep in your shark's pocket"
+        panel.message = "Pick apps for Pet's ring"
         panel.prompt = "Add"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -1480,6 +1507,91 @@ final class PetController: NSObject, NSMenuDelegate {
     @objc private func quit() {
         savePosition()
         NSApp.terminate(nil)
+    }
+
+    // MARK: - Pet home
+
+    func showHome() {
+        if homeWindow == nil { homeWindow = PetHomeWindowController(controller: self) }
+        homeWindow?.show()
+    }
+
+    func showManageApps(onChange: (() -> Void)? = nil) {
+        launchPanel.hide()
+        let manager = ManageAppsWindowController.shared
+        manager.onChange = { [weak self] in
+            self?.launchPanel.reload()
+            onChange?()
+        }
+        manager.show()
+    }
+
+    func showStash() { openStash() }
+
+    func setCoat(_ coat: Coat) {
+        guard coat != pose.coat else { return }
+        pose.coat = coat
+        UserDefaults.standard.set(coat.rawValue, forKey: Keys.coat)
+        pulse(amount: 0.12, duration: 0.35)
+        spawnBubbles(2)
+    }
+
+    func setPetScale(_ value: CGFloat) {
+        let clamped = min(1.15, max(0.85, value))
+        guard abs(clamped - petScale) > 0.0001 else { return }
+        petScale = clamped
+        pose.displayScale = clamped
+        UserDefaults.standard.set(Double(clamped), forKey: Keys.size)
+        let target = edgeTarget(for: edge, in: currentScreen.visibleFrame, from: origin)
+        setOrigin(target)
+        applyScreenClip()
+        view.pose = pose
+    }
+
+    func setMood(_ value: Mood) {
+        guard value != mood else { return }
+        mood = value
+        UserDefaults.standard.set(value.rawValue, forKey: Keys.mood)
+        think(value == .chatty ? "yay" : (value == .shy ? "…" : "ok"), for: 1.5)
+    }
+
+    func setQuietHours(_ enabled: Bool) {
+        quietHours = enabled
+        UserDefaults.standard.set(enabled, forKey: Keys.quiet)
+    }
+
+    func setHugEdges(_ enabled: Bool) {
+        guard enabled != hugEdges else { return }
+        hugEdges = enabled
+        UserDefaults.standard.set(enabled, forKey: Keys.hugEdges)
+        if enabled {
+            release()
+        } else {
+            if isMini { grow(fast: true, openPanel: false) }
+            edge = .free
+            savePosition()
+        }
+    }
+
+    func setHideFromSharing(_ enabled: Bool) {
+        hideFromSharing = enabled
+        UserDefaults.standard.set(enabled, forKey: Keys.sharing)
+        applySharing()
+    }
+
+    func setOpenAtLogin(_ enabled: Bool) {
+        guard Bundle.main.bundleIdentifier != nil, Bundle.main.bundlePath.hasSuffix(".app") else { return }
+        let service = SMAppService.mainApp
+        do {
+            if enabled {
+                if service.status == .notRegistered { try service.register() }
+                if service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+            } else if service.status == .enabled || service.status == .requiresApproval {
+                try service.unregister()
+            }
+        } catch {
+            think("hm? couldn't", for: 2.5)
+        }
     }
 
     // MARK: - Debug snapshot
