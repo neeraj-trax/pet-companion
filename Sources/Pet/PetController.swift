@@ -1270,67 +1270,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     private func populate(_ menu: NSMenu) {
         menu.addItem(withTitle: "Open Pet home…", action: #selector(openHome), keyEquivalent: ",").target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Add app shortcut…", action: #selector(addShortcutAction), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Manage apps…", action: #selector(manageApps), keyEquivalent: "").target = self
-        let n = StashStore.shared.count
-        menu.addItem(withTitle: n == 0 ? "Open stash (empty — drop things on Pet)" : "Open stash (\(n))",
-                     action: #selector(openStash), keyEquivalent: "").target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Go for a stroll (compact)", action: #selector(swimNow), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Nap now", action: #selector(napNow), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Come here", action: #selector(comeHere), keyEquivalent: "").target = self
-        menu.addItem(withTitle: time < shhUntil ? "Shh for an hour ✓ (tap to end)" : "Shh for an hour",
-                     action: #selector(shhHour), keyEquivalent: "").target = self
-        menu.addItem(.separator())
-
-        let skinItem = NSMenuItem(title: "Skin", action: nil, keyEquivalent: "")
-        let skinMenu = NSMenu()
-        for coat in Coat.allCases {
-            let item = NSMenuItem(title: coat.title, action: #selector(pickCoat(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = coat.rawValue
-            item.state = pose.coat == coat ? .on : .off
-            skinMenu.addItem(item)
-        }
-        skinItem.submenu = skinMenu
-        menu.addItem(skinItem)
-
-        let moodItem = NSMenuItem(title: "Mood", action: nil, keyEquivalent: "")
-        let moodMenu = NSMenu()
-        for m in Mood.allCases {
-            let item = NSMenuItem(title: m.title, action: #selector(pickMood(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = m.rawValue
-            item.state = mood == m ? .on : .off
-            moodMenu.addItem(item)
-        }
-        moodMenu.addItem(.separator())
-        let quiet = moodMenu.addItem(withTitle: "Quiet hours (22:00–08:00)", action: #selector(toggleQuiet), keyEquivalent: "")
-        quiet.target = self
-        quiet.state = quietHours ? .on : .off
-        moodItem.submenu = moodMenu
-        menu.addItem(moodItem)
-
-        if let front = NSWorkspace.shared.frontmostApplication, let id = front.bundleIdentifier,
-           id != Bundle.main.bundleIdentifier, let name = front.localizedName {
-            let item = menu.addItem(withTitle: "Stay small while \(name) is in front", action: #selector(toggleDiveApp(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = id
-            item.state = diveApps.contains(id) ? .on : .off
-        }
-        menu.addItem(.separator())
-        let hug = menu.addItem(withTitle: "Hug screen edges", action: #selector(toggleHug), keyEquivalent: "")
-        hug.target = self
-        hug.state = hugEdges ? .on : .off
-        let share = menu.addItem(withTitle: "Hide from screenshots & screen sharing", action: #selector(toggleSharing), keyEquivalent: "")
-        share.target = self
-        share.state = hideFromSharing ? .on : .off
-        if Bundle.main.bundleIdentifier != nil, Bundle.main.bundlePath.hasSuffix(".app") {
-            let login = menu.addItem(withTitle: "Open at login", action: #selector(toggleLogin), keyEquivalent: "")
-            login.target = self
-            login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        }
+        menu.addItem(withTitle: "Open Stash", action: #selector(openStash), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Pet", action: #selector(quit), keyEquivalent: "q").target = self
     }
@@ -1560,6 +1500,13 @@ final class PetController: NSObject, NSMenuDelegate {
         UserDefaults.standard.set(enabled, forKey: Keys.quiet)
     }
 
+    var compactAppIdentifiers: [String] { diveApps.sorted() }
+
+    func setCompactForApp(_ id: String, enabled: Bool) {
+        if enabled { diveApps.insert(id) } else { diveApps.remove(id) }
+        UserDefaults.standard.set(Array(diveApps), forKey: Keys.diveApps)
+    }
+
     func setHugEdges(_ enabled: Bool) {
         guard enabled != hugEdges else { return }
         hugEdges = enabled
@@ -1639,6 +1586,8 @@ final class PetController: NSObject, NSMenuDelegate {
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0)))
         enterIdle()
         print("selftest: screen", f)
+        let menuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
+        expect(menuTitles == ["Open Pet home…", "Open Stash", "Quit Pet"], "essential menu only")
 
         startStroll(.menu); step(3)
         expect(state == .strolling, "stroll should end small and walking")

@@ -1,30 +1,29 @@
 import AppKit
 
 /// The friendly home for Pet's settings. It keeps the character visible while the user
-/// changes appearance and puts the existing app, Stash and behaviour controls in one place.
+/// changes appearance and keeps the essential app, Stash and preference controls in one place.
 final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
     private weak var petController: PetController?
     private let room = PetRoomView()
     private let sizeSlider = NSSlider(value: 1, minValue: 0.85, maxValue: 1.15, target: nil, action: nil)
     private let sizeValue = NSTextField(labelWithString: "100%")
     private let appIcons = AppIconStrip()
-    private let moodControl = NSSegmentedControl(labels: ["Shy", "Normal", "Chatty"], trackingMode: .selectOne, target: nil, action: nil)
-    private let quietSwitch = NSButton(checkboxWithTitle: "Quiet hours · 10 PM–8 AM", target: nil, action: nil)
     private let edgesSwitch = NSButton(checkboxWithTitle: "Hug screen edges", target: nil, action: nil)
     private let sharingSwitch = NSButton(checkboxWithTitle: "Hide from screenshots & sharing", target: nil, action: nil)
     private let loginSwitch = NSButton(checkboxWithTitle: "Open at login", target: nil, action: nil)
+    private let moreSettings = NSButton(title: "More settings…", target: nil, action: nil)
     private var skinButtons: [SkinButton] = []
     private var previousApp: NSRunningApplication?
 
     init(controller: PetController) {
         petController = controller
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 740),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1020, height: 680),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         window.title = "Pet"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.minSize = NSSize(width: 1000, height: 740)
+        window.minSize = NSSize(width: 980, height: 660)
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)
@@ -89,7 +88,7 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
             right.topAnchor.constraint(equalTo: left.topAnchor),
             right.leadingAnchor.constraint(equalTo: divider.trailingAnchor, constant: 24),
             right.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -30),
-            right.bottomAnchor.constraint(equalTo: left.bottomAnchor),
+            right.bottomAnchor.constraint(lessThanOrEqualTo: left.bottomAnchor),
             right.widthAnchor.constraint(greaterThanOrEqualToConstant: 360),
             left.widthAnchor.constraint(equalTo: right.widthAnchor, multiplier: 1.42),
         ])
@@ -99,7 +98,7 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         let view = NSView()
         let title = NSTextField(labelWithString: "Pet")
         title.font = UI.roundedFont(28, .bold)
-        let subtitle = NSTextField(labelWithString: "Your little desktop friend")
+        let subtitle = NSTextField(labelWithString: "Make Pet yours")
         subtitle.font = .systemFont(ofSize: 13)
         subtitle.textColor = .secondaryLabelColor
         let labels = NSStackView(views: [title, subtitle])
@@ -107,25 +106,11 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         labels.alignment = .leading
         labels.spacing = 1
 
-        let dot = NSView()
-        dot.wantsLayer = true
-        dot.layer?.backgroundColor = NSColor.systemGreen.cgColor
-        dot.layer?.cornerRadius = 5
-        dot.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([dot.widthAnchor.constraint(equalToConstant: 10), dot.heightAnchor.constraint(equalToConstant: 10)])
-        let active = NSTextField(labelWithString: "Active on all Spaces")
-        active.font = .systemFont(ofSize: 13, weight: .medium)
-        let status = NSStackView(views: [dot, active])
-        status.orientation = .horizontal
-        status.alignment = .centerY
-        status.spacing = 7
-
-        for subview in [labels, status] { subview.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(subview) }
+        labels.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(labels)
         NSLayoutConstraint.activate([
             labels.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             labels.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            status.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            status.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
         return view
     }
@@ -193,16 +178,16 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
     private func makeSettingsColumn() -> NSView {
         let skin = makeSkinSection()
         let apps = makeAppsSection()
-        let behavior = makeBehaviorSection()
+        let essentials = makeEssentialsSection()
         let actions = makeActions()
-        let stack = NSStackView(views: [skin, apps, behavior, actions])
+        let stack = NSStackView(views: [skin, apps, essentials, actions])
         stack.orientation = .vertical
         stack.alignment = .width
         stack.spacing = 12
         stack.distribution = .fill
         skin.heightAnchor.constraint(equalToConstant: 154).isActive = true
         apps.heightAnchor.constraint(equalToConstant: 124).isActive = true
-        behavior.heightAnchor.constraint(greaterThanOrEqualToConstant: 250).isActive = true
+        essentials.heightAnchor.constraint(equalToConstant: 168).isActive = true
         actions.heightAnchor.constraint(equalToConstant: 38).isActive = true
         return stack
     }
@@ -263,36 +248,27 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         return card
     }
 
-    private func makeBehaviorSection() -> NSView {
+    private func makeEssentialsSection() -> NSView {
         let card = CardView()
-        let title = sectionTitle("Behavior")
-        let moodLabel = NSTextField(labelWithString: "Mood")
-        moodLabel.font = .systemFont(ofSize: 12, weight: .medium)
-        moodControl.target = self
-        moodControl.action = #selector(moodChanged)
-        moodControl.controlSize = .small
-
-        let moodRow = NSStackView(views: [moodLabel, moodControl])
-        moodRow.orientation = .horizontal
-        moodRow.alignment = .centerY
-        moodRow.spacing = 12
-        moodControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
-
-        let visible = statusRow(symbol: "rectangle.on.rectangle", text: "Visible on all Spaces")
-        for toggle in [quietSwitch, edgesSwitch, sharingSwitch, loginSwitch] {
+        let title = sectionTitle("Essentials")
+        for toggle in [edgesSwitch, sharingSwitch, loginSwitch] {
             toggle.target = self
             toggle.action = #selector(toggleChanged(_:))
             toggle.controlSize = .small
             toggle.font = .systemFont(ofSize: 12)
         }
-        quietSwitch.tag = 1; edgesSwitch.tag = 2; sharingSwitch.tag = 3; loginSwitch.tag = 4
+        edgesSwitch.tag = 2; sharingSwitch.tag = 3; loginSwitch.tag = 4
 
-        let stack = NSStackView(views: [title, moodRow, separator(), quietSwitch, edgesSwitch, sharingSwitch, loginSwitch, visible])
+        moreSettings.target = self
+        moreSettings.action = #selector(showMoreSettings(_:))
+        moreSettings.bezelStyle = .inline
+        moreSettings.controlSize = .small
+        moreSettings.font = .systemFont(ofSize: 11)
+        let stack = NSStackView(views: [title, edgesSwitch, sharingSwitch, loginSwitch, moreSettings])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
         stack.setCustomSpacing(12, after: title)
-        stack.setCustomSpacing(10, after: moodRow)
         stack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -300,8 +276,6 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
             stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: card.bottomAnchor, constant: -12),
-            moodRow.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            moodControl.widthAnchor.constraint(greaterThanOrEqualToConstant: 220),
         ])
         return card
     }
@@ -323,27 +297,6 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         return label
     }
 
-    private func separator() -> NSBox {
-        let box = NSBox()
-        box.boxType = .separator
-        box.heightAnchor.constraint(equalToConstant: 1).isActive = true
-        return box
-    }
-
-    private func statusRow(symbol: String, text: String) -> NSView {
-        let image = NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage())
-        image.contentTintColor = .systemGreen
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 11, weight: .medium)
-        label.textColor = .secondaryLabelColor
-        let row = NSStackView(views: [image, label])
-        row.orientation = .horizontal
-        row.spacing = 7
-        image.widthAnchor.constraint(equalToConstant: 15).isActive = true
-        image.heightAnchor.constraint(equalToConstant: 15).isActive = true
-        return row
-    }
-
     private func refresh() {
         guard let controller = petController else { return }
         room.update(coat: controller.currentCoat, size: controller.petScale)
@@ -353,8 +306,6 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
             button.setSelected(Coat.allCases[index] == controller.currentCoat)
         }
         appIcons.reload(urls: controller.store.apps)
-        moodControl.selectedSegment = Mood.allCases.firstIndex(of: controller.currentMood) ?? 1
-        quietSwitch.state = controller.quietHoursEnabled ? .on : .off
         edgesSwitch.state = controller.hugEdges ? .on : .off
         sharingSwitch.state = controller.hidesFromSharing ? .on : .off
         loginSwitch.state = controller.opensAtLogin ? .on : .off
@@ -373,21 +324,68 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         room.update(coat: petController?.currentCoat ?? .hojiro, size: value)
     }
 
-    @objc private func moodChanged() {
-        guard Mood.allCases.indices.contains(moodControl.selectedSegment) else { return }
-        petController?.setMood(Mood.allCases[moodControl.selectedSegment])
-    }
-
     @objc private func toggleChanged(_ sender: NSButton) {
         let enabled = sender.state == .on
         switch sender.tag {
-        case 1: petController?.setQuietHours(enabled)
         case 2: petController?.setHugEdges(enabled)
         case 3: petController?.setHideFromSharing(enabled)
         case 4: petController?.setOpenAtLogin(enabled)
         default: break
         }
         refresh()
+    }
+
+    @objc private func showMoreSettings(_ sender: NSButton) {
+        guard let controller = petController else { return }
+        let menu = NSMenu()
+        let mood = NSMenuItem(title: "Mood", action: nil, keyEquivalent: "")
+        let moods = NSMenu()
+        for option in Mood.allCases {
+            let item = moods.addItem(withTitle: option.title, action: #selector(selectMood(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = option.rawValue
+            item.state = controller.currentMood == option ? .on : .off
+        }
+        mood.submenu = moods
+        menu.addItem(mood)
+        let quiet = menu.addItem(withTitle: "Quiet hours · 10 PM–8 AM", action: #selector(toggleQuietHours), keyEquivalent: "")
+        quiet.target = self
+        quiet.state = controller.quietHoursEnabled ? .on : .off
+
+        let savedRules = controller.compactAppIdentifiers
+        if !savedRules.isEmpty {
+            menu.addItem(.separator())
+            for id in savedRules {
+                let name = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)?
+                    .deletingPathExtension().lastPathComponent ?? id
+                let item = menu.addItem(withTitle: "Stay small in \(name)", action: #selector(toggleCompactApp(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = id
+                item.state = .on
+            }
+        }
+        if let previousApp, let id = previousApp.bundleIdentifier,
+           id != Bundle.main.bundleIdentifier, !savedRules.contains(id) {
+            let item = menu.addItem(withTitle: "Stay small in \(previousApp.localizedName ?? id)", action: #selector(toggleCompactApp(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = id
+        }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.maxY + 4), in: sender)
+    }
+
+    @objc private func selectMood(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let mood = Mood(rawValue: raw) else { return }
+        petController?.setMood(mood)
+    }
+
+    @objc private func toggleQuietHours() {
+        guard let controller = petController else { return }
+        controller.setQuietHours(!controller.quietHoursEnabled)
+    }
+
+    @objc private func toggleCompactApp(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String, let controller = petController else { return }
+        controller.setCompactForApp(id, enabled: !controller.compactAppIdentifiers.contains(id))
     }
 
     @objc private func editApps() {
