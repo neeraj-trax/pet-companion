@@ -4,14 +4,14 @@ Read this first. It tells you what the app is, how the code is laid out, what ea
 
 ## What it is
 
-A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. When you are busy it shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip; while you speak on a call, sound bars show on its TV face. No permissions are required except Microphone (asked once, only when a call is already using the mic) and Automation for play/pause (asked once).
+A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. When you are busy it shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip. Automation permission may be requested for play/pause.
 
-Opening Pet.app again, or choosing **Open Pet home…** from either menu, opens the native Pet home/settings window. It has a live room preview, six skins, a persistent 85–115% size control, the current app-ring choices with an Edit Apps shortcut, mood and quiet-hours controls, edge/privacy/login options, plus direct Stash and Permissions buttons. Changes apply immediately and save automatically.
+Opening Pet.app again, or choosing **Open Pet home…** from either menu, opens the native Pet home/settings window. It has a live room preview, six skins, a persistent 85–115% size control, the current app-ring choices with an Edit Apps shortcut, mood and quiet-hours controls, edge/privacy/login options, plus a direct Stash button. Changes apply immediately and save automatically.
 
 Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget, never distracting during work.
 
 - Native Swift + AppKit, no Xcode project, no dependencies. `swift build` compiles it.
-- Character: a sprite-sheet cloud-headed robot (`Assets/pet-atlas.webp`, personal use only, not in git; see "Assets"). The old vector shark drawing remains as a fallback when the atlas is missing.
+- Current character: a sprite-sheet cloud-headed robot (`Assets/pet-atlas.webp`, personal use only, not in git; see "Assets"). The old vector shark drawing remains as a fallback when the atlas is missing. The owner is preparing a new blue dog character sheet based on a GIF in Stash; do not replace the current art until that sheet arrives. The dog has no face screen.
 - Two agents worked on this in parallel for a while with a file split (see "Ownership"); currently one agent owns everything.
 
 ## Build, run, verify
@@ -58,7 +58,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 | `StashStore.swift` | saving dropped files/images/links/text | files copied off the main thread |
 | `StashPanel.swift` | floating Stash shelf, file previews and drag-out | nonactivating; stays over full-screen apps |
 | `MusicWatcher.swift` | Spotify / Apple Music now-playing via distributed notifications | |
-| `MicWatcher.swift` | "user is speaking" during calls (CoreAudio running-somewhere + AVAudioEngine RMS) | |
+| `MicWatcher.swift` | dormant microphone reaction code, not instantiated or permissioned | Keep dormant until a future character behavior needs it. |
 | `UI.swift` | shared font/colour helpers | |
 
 ## How it works (the essentials)
@@ -73,7 +73,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 
 **Pet home/settings.** The menu bar menu and Pet's right-click menu both start with “Open Pet home…”. Reopening Pet.app also opens it. `PetHomeWindowController` calls the public setting methods on `PetController`, so the desktop character updates live. The size setting is stored as `pet.displayScale`; valid values are clamped to 0.85–1.15 and scale around the feet so Pet stays on the same screen edge. Hit-testing, ring placement and edge fitting use the scaled silhouette too. The home window returns focus to the previously active app when it closes.
 
-**Expressions:** short texts (`pose.thought`) are drawn on the character's TV face by the view (panel colours sampled from the atlas per skin), not in a bubble. `pose.listening` draws sound bars there while the user speaks. `MicWatcher` only opens the mic while some other app already has it open (a call), measures RMS with an adaptive noise floor, and needs Microphone permission once (`NSMicrophoneUsageDescription` is in Info.plist).
+**Expressions:** The robot-specific overlay that replaced pixels on its face with text and sound bars has been removed. `pose.thoughtAlpha` still selects the waiting sprite pose, but no text is painted onto the sprite. The microphone watcher is not instantiated and Pet no longer requests microphone permission. When the blue dog sheet arrives, express reactions through its own face and body poses rather than drawing into a screen.
 
 **Hover/click.** The pet window is click-through unless `petContains(mouse)` (hit path from `PetGeometry.hitPath`). Resting the cursor ~0.3 s on the body opens the ring; the ring window is likewise click-through except on chips. `updateHover` owns this; `RingPanel.keepsOpen(for:)` decides when the ring stays open.
 
@@ -102,7 +102,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 - Sprite rows with no trigger yet: `failed`, `running` (laptop), `review`. Wire a pose signal in the controller, then map it in the view.
 - Music: the player chip works; the "spinning disc" visual for `pose.music`/`discAngle` is not drawn yet.
 - The lying-down nap is the closed-eyes idle frame rotated 90°; a real lying sprite would look better.
-- Listening (mic) is untested on a real call in this environment; thresholds are in `MicWatcher.ingest`.
+- The new blue dog sheet is pending. The supplied GIF is a visual reference, not a drop-in atlas: it has a peach background and does not provide separate transparent cells for every app pose. When it arrives, update the sprite geometry, skin recolouring and previews to suit the dog.
 - Recents in the ring are disabled (`RingConfig.maxRecents = 0`) at the owner's request; the code path still works.
 - Drops from Chrome/Photos that arrive as file promises are not received (only real files, images, links, text).
 - Multi-monitor: edge logic uses the screen under the character; seams between monitors are avoided but not heavily tested.

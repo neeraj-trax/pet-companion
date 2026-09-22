@@ -27,7 +27,6 @@ final class PetController: NSObject, NSMenuDelegate {
     let stashPanel = StashPanel()
     let store = ShortcutStore.shared
     let music = MusicWatcher()
-    let mic = MicWatcher()
     private var homeWindow: PetHomeWindowController?
     private var musicNoteIn: TimeInterval = 20
 
@@ -808,9 +807,6 @@ final class PetController: NSObject, NSMenuDelegate {
             think(next.1, for: next.2)
         }
         pose.thoughtAlpha = approach(pose.thoughtAlpha, time < thoughtUntil ? 1 : 0, rate: 6, dt: dtf)
-
-        // listening: sound bars on the screen while you speak (only during calls)
-        pose.listening = approach(pose.listening, (mic.speaking && !isMini) ? 1 : 0, rate: 8, dt: dtf)
 
         // music: the disc keeps turning while something plays; a note now and then
         let playing = music.isPlaying

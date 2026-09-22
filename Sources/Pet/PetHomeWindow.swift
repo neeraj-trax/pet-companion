@@ -309,13 +309,11 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
     private func makeActions() -> NSView {
         let stash = NSButton(title: "Open Stash", target: self, action: #selector(openStash))
         stash.image = NSImage(systemSymbolName: "tray.full", accessibilityDescription: nil)
-        let permissions = NSButton(title: "Permissions", target: self, action: #selector(openPermissions))
-        permissions.image = NSImage(systemSymbolName: "hand.raised", accessibilityDescription: nil)
-        for button in [stash, permissions] { button.bezelStyle = .rounded; button.imagePosition = .imageLeading }
-        let row = NSStackView(views: [stash, permissions])
+        stash.bezelStyle = .rounded
+        stash.imagePosition = .imageLeading
+        let row = NSStackView(views: [stash])
         row.orientation = .horizontal
-        row.spacing = 10
-        row.distribution = .fillEqually
+        row.alignment = .centerY
         return row
     }
 
@@ -397,12 +395,6 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func openStash() { petController?.showStash() }
-
-    @objc private func openPermissions() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-            NSWorkspace.shared.open(url)
-        }
-    }
 }
 
 private final class CardView: NSVisualEffectView {
