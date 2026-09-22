@@ -7,7 +7,7 @@ and gets out of the way while you work.
 ## Run it
 - Double-click `build/Pet.app` (or drag it to Applications first). A small Pet icon appears in the
   menu bar; there is no Dock icon.
-- Lost it? Click the menu-bar icon → "Come here", or double-click Pet.app again.
+- Lost it? Click the dog-face menu-bar icon → "Come here", or double-click Pet.app to open Pet home.
 - Right-click the pet → "Open at login" so it comes back after a restart.
 - To rebuild after changing code: `./build-app.sh` (needs Xcode or the Command Line Tools).
   On another Mac, right-click → Open the first time (it is signed locally).
@@ -26,8 +26,8 @@ and gets out of the way while you work.
   Move your cursor near it and it grows back. It stays visible across full-screen app Spaces.
 - **Click** it to poke. **Double-click** to jump to the app you were using before.
 - **Expressions**: its ears, eyes, face and body poses show how it feels. There is no face screen.
-- Right-click menu: Pet home, apps, stash, hide, nap, come here, shh, skin, mood, quiet hours,
-  dive-while-app, hug edges, hide from screenshots, open at login, quit.
+- Right-click menu: Pet home, apps, Stash, compact stroll, nap, come here, shh, skin, mood,
+  quiet hours, stay-small-while-app, hug edges, hide from screenshots, open at login, quit.
 
 ## Permissions
 Automation may be requested for music-app play/pause. Pet does not request microphone access.

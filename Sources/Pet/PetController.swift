@@ -342,7 +342,7 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     private func scaledHitPath() -> CGPath {
-        let napping = SpriteAtlas.image != nil && (pose.eyeStyle == .closed || pose.flop > 0.5)
+        let napping = SpriteAtlas.image != nil && pose.napping
         let path = PetGeometry.hitPath(bob: pose.bob, facing: pose.facing,
                                        squashX: napping ? 1 : pose.squashX,
                                        squashY: napping ? 1 : pose.squashY, napping: napping)
@@ -794,6 +794,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let t = CGFloat(time)
         let dtf = CGFloat(dt)
         let napping = state == .napping
+        pose.napping = napping
         let yawning = napping && stateTime < 0.9
         let happy = state == .poked || launchPanel.isShown || dropHovering || time < welcomeUntil
 
@@ -802,7 +803,7 @@ final class PetController: NSObject, NSMenuDelegate {
             thoughtIn -= dt
             if thoughtIn <= 0 {
                 thoughtIn = Double.random(in: thoughtInterval)
-                think(["hm", "…", "?", "♪", "◠‿◠", "beep", "ok"].randomElement() ?? "…")
+                think(["hm", "…", "?", "♪", "◠‿◠", "ok"].randomElement() ?? "…")
             }
         }
         if let next = pendingThoughts.first, time >= next.0 {
@@ -1273,7 +1274,7 @@ final class PetController: NSObject, NSMenuDelegate {
         menu.addItem(withTitle: "Add app shortcut…", action: #selector(addShortcutAction), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Manage apps…", action: #selector(manageApps), keyEquivalent: "").target = self
         let n = StashStore.shared.count
-        menu.addItem(withTitle: n == 0 ? "Open stash (empty — drop things on the shark)" : "Open stash (\(n))",
+        menu.addItem(withTitle: n == 0 ? "Open stash (empty — drop things on Pet)" : "Open stash (\(n))",
                      action: #selector(openStash), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Go for a stroll (compact)", action: #selector(swimNow), keyEquivalent: "").target = self
@@ -1313,7 +1314,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
         if let front = NSWorkspace.shared.frontmostApplication, let id = front.bundleIdentifier,
            id != Bundle.main.bundleIdentifier, let name = front.localizedName {
-            let item = menu.addItem(withTitle: "Dive while \(name) is in front", action: #selector(toggleDiveApp(_:)), keyEquivalent: "")
+            let item = menu.addItem(withTitle: "Stay small while \(name) is in front", action: #selector(toggleDiveApp(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = id
             item.state = diveApps.contains(id) ? .on : .off
@@ -1647,9 +1648,11 @@ final class PetController: NSObject, NSMenuDelegate {
         grow(fast: true, openPanel: false); step(2)
         expect(state == .idle && mini == 0, "grow ends idle at full size")
 
-        startNap(); step(2); expect(state == .napping, "napping")
+        startNap(); step(0.1)
+        expect(state == .napping && pose.napping, "nap pose starts immediately")
+        step(1.9); expect(state == .napping, "napping")
         expect(pose.flop > 0.5, "flopped while napping")
-        wake(); step(1); expect(state == .idle && pose.flop < 0.2, "wake returns idle and un-flops")
+        wake(); step(1); expect(state == .idle && !pose.napping && pose.flop < 0.2, "wake returns idle and un-flops")
 
         poke(); step(1); expect(state == .idle, "poke ends idle")
         for _ in 0..<4 { poke() }; step(1); expect(state == .idle, "dizzy pokes end idle")

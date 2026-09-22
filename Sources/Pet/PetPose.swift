@@ -20,6 +20,7 @@ struct PetPose {
     var facing: CGFloat = 1          // 1 = looking right, -1 = looking left
     var eyeOpen: CGFloat = 1         // 0 closed ... 1 open
     var eyeStyle: EyeStyle = .open
+    var napping: Bool = false       // explicit dog sleep pose; a blink must not turn into a nap
     var look: CGPoint = .zero        // -1...1, already facing-adjusted
     var earPerk: CGFloat = 0.4       // 0 droopy ... 1 perked up
     var mouth: Mouth = .neutral

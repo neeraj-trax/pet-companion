@@ -143,7 +143,7 @@ final class PetView: NSView {
     }
 
     private func drawSprite(_ ctx: CGContext, _ p: PetPose, atlas: CGImage) {
-        let napping = p.eyeStyle == .closed || p.flop > 0.5
+        let napping = p.napping
         let state = napping ? .idle : inferSpriteState(p)
         if state != spriteState { spriteState = state; spriteStateStart = p.time }
         let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -157,6 +157,8 @@ final class PetView: NSView {
             let lookMag = hypot(p.look.x, p.look.y)
             if state == .idle, lookMag > 0.5 {                                              // directional gaze
                 frame = SpriteAtlas.lookFrame(dx: p.look.x * p.facing, dyUp: p.look.y)
+            } else if state == .idle, p.eyeOpen < 0.4 || p.eyeStyle == .closed {
+                frame = SpriteFrame(row: 0, col: 1)                                        // blink while standing
             }
         }
         guard let cell = atlas.cropping(to: SpriteAtlas.rect(of: frame)) else { return }
@@ -474,7 +476,7 @@ final class PetView: NSView {
     private func drawZzz(_ ctx: CGContext, _ p: PetPose) {
         guard p.zzz > 0.01 else { return }
         let c = PetGeometry.bodyCenter
-        let dogNap = SpriteAtlas.image != nil && (p.eyeStyle == .closed || p.flop > 0.5)
+        let dogNap = SpriteAtlas.image != nil && p.napping
         let direction: CGFloat = dogNap ? 1 : p.facing
         var base = CGPoint(x: c.x + p.facing * 26, y: topNow(p) - 12)
         if dogNap {
@@ -571,6 +573,10 @@ enum IconRenderer {
         let base = PetPose()
         cells.append(("idle", base, SpriteFrame(row: 0, col: 0)))
         cells.append(("idle blink", base, SpriteFrame(row: 0, col: 1)))
+        var p = base; p.eyeOpen = 0; p.eyeStyle = .closed
+        cells.append(("awake blink", p, nil))
+        p = base; p.napping = true; p.mouth = .chomp; p.flop = 0
+        cells.append(("nap entry", p, nil))
         cells.append(("walk right", base, SpriteFrame(row: 1, col: 2)))
         cells.append(("walk left", base, SpriteFrame(row: 2, col: 2)))
         cells.append(("waving", base, SpriteFrame(row: 3, col: 1)))
@@ -581,10 +587,10 @@ enum IconRenderer {
         cells.append(("celebrate", base, SpriteFrame(row: 8, col: 2)))
         cells.append(("look 45°", base, SpriteAtlas.lookFrame(dx: 1, dyUp: 1)))
         cells.append(("look 270°", base, SpriteAtlas.lookFrame(dx: -1, dyUp: 0)))
-        var p = base; p.eyeStyle = .closed; p.zzz = 1; p.shadow = 1
+        p = base; p.napping = true; p.eyeStyle = .closed; p.zzz = 1; p.shadow = 1
         cells.append(("nap", p, SpriteFrame(row: 5, col: 2)))
         p = base; p.walk = 1; p.squashX = 0.75; p.squashY = 0.75; cells.append(("stroll (compact)", p, SpriteFrame(row: 1, col: 3)))
-        p = base; p.flop = 1; p.eyeStyle = .closed; p.zzz = 1; cells.append(("lying nap", p, SpriteFrame(row: 5, col: 2)))
+        p = base; p.napping = true; p.flop = 1; p.eyeStyle = .closed; p.zzz = 1; cells.append(("lying nap", p, SpriteFrame(row: 5, col: 2)))
         for coat in Coat.allCases {
             p = base; p.coat = coat
             cells.append((coat.title, p, SpriteFrame(row: 0, col: 0)))

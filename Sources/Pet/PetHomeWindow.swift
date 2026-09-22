@@ -566,7 +566,9 @@ private final class PetRoomView: NSView {
         pose.displayScale = size
         pose.shadow = 1
         pose.bob = 1.6 * sin(phase * 1.7)
-        pose.eyeStyle = Int(phase * 10) % 83 == 0 ? .closed : .open
+        let blinking = Int(phase * 10) % 83 == 0
+        pose.eyeStyle = blinking ? .closed : .open
+        pose.eyeOpen = blinking ? 0 : 1
         pose.time = phase
         pet.pose = pose
     }
