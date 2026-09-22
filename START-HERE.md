@@ -44,7 +44,7 @@ Then open the PNG and look at it. `--snapshot` writes `$TMPDIR/pet-debug/view.pn
 
 - Owner is a non-technical designer. Reply in short plain sentences and end with a next step.
 - Vibe: a cozy tiny friend, never a utility widget, never distracting during work.
-- After each round: rebuild, reinstall to `/Applications`, relaunch, update docs, and commit.
-- A prior push to the configured private remote was rejected by automatic approval review because the exact destination was not verified as owner-trusted. Do not retry until the owner explicitly confirms that remote and authorizes the push.
+- After each round: rebuild, reinstall to `/Applications`, relaunch, update docs, commit, and push.
+- The owner confirmed `https://github.com/neeraj-trax/pet-companion.git` as the intended private remote and explicitly authorized pushing on 2026-09-23.
 - Keep `AGENTS.md` up to date when behaviour changes. That file is the contract for the next agent.
 - If two agents work at once, keep the ownership split in `AGENTS.md` (one owns the drawing files, the other everything else) and never build while the other is mid-edit.
