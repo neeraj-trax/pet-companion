@@ -19,6 +19,8 @@ rm -rf /Applications/Pet.app && cp -R build/Pet.app /Applications/Pet.app && ope
 
 The installed copy the owner uses is `/Applications/Pet.app`, so always reinstall it after a build.
 
+To create a shareable disk image, run `./build-dmg.sh`. It writes `build/Pet.dmg`, includes an Applications shortcut, and deliberately removes the personal-use sprite atlas. The DMG is ad-hoc signed unless a Developer ID distribution identity is added later, so another Mac may require right-click → Open on first launch.
+
 ## Verify without a screen (no screenshot access)
 
 ```bash

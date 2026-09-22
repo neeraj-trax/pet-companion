@@ -18,6 +18,7 @@ Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget,
 swift build -c release                 # compile
 ./build-app.sh                         # compile + self-test + bundle → build/Pet.app
 pkill -x Pet; open build/Pet.app       # relaunch
+./build-dmg.sh                         # shareable build/Pet.dmg; private atlas excluded
 ```
 
 Headless checks (there is no screenshot access for agents; use these):
@@ -88,6 +89,8 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 ## Assets
 
 `Assets/pet-atlas.webp` is the Codex pet sprite sheet, used for the owner's own desktop only. It is **not committed** (see `.gitignore`); `build-app.sh` copies it into the app bundle when present. Without it the app draws the fallback vector character. `PET_ATLAS=<path>` overrides the location.
+
+`build-dmg.sh` always removes the atlas from the copy placed in `build/Pet.dmg`, then re-signs that shareable copy. The local `build/Pet.app` and `/Applications/Pet.app` can continue using the atlas. A Developer ID Application certificate is not currently installed, so the DMG is ad-hoc signed and recipients may need right-click → Open once.
 
 ## Known gaps / ideas not built
 
