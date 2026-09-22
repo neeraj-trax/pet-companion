@@ -1,17 +1,16 @@
 import AppKit
 
-/// Sprite-atlas character (the blue cloud-headed terminal robot), played back by the rules in
-/// `gpt-pet-exact-animation-spec.md`: nine timed animation rows plus sixteen directional gaze poses.
+/// Blue dog sprite atlas: nine timed animation rows plus sixteen supplied gaze views.
 /// All frame selection is a pure function of elapsed time, so the view needs no timers of its own.
 
 enum SpriteState: Int, CaseIterable {
-    case idle = 0, runningRight, runningLeft, waving, jumping, failed, waiting, running, review
+    case idle = 0, runningRight, runningLeft, waving, jumping, oops, waiting, laptop, celebration
 
     var id: String {
         switch self {
         case .idle: return "idle"; case .runningRight: return "running-right"; case .runningLeft: return "running-left"
-        case .waving: return "waving"; case .jumping: return "jumping"; case .failed: return "failed"
-        case .waiting: return "waiting"; case .running: return "running"; case .review: return "review"
+        case .waving: return "waving"; case .jumping: return "jumping"; case .oops: return "oops"
+        case .waiting: return "waiting"; case .laptop: return "laptop"; case .celebration: return "celebration"
         }
     }
 
@@ -23,10 +22,10 @@ enum SpriteState: Int, CaseIterable {
         case .runningLeft:   return [120, 120, 120, 120, 120, 120, 120, 220]
         case .waving:        return [140, 140, 140, 280]
         case .jumping:       return [140, 140, 140, 140, 280]
-        case .failed:        return [140, 140, 140, 140, 140, 140, 140, 240]
+        case .oops:          return [140, 140, 140, 140, 140, 140, 140, 240]
         case .waiting:       return [150, 150, 150, 150, 150, 260]
-        case .running:       return [120, 120, 120, 120, 120, 220]
-        case .review:        return [150, 150, 150, 150, 150, 280]
+        case .laptop:        return [120, 120, 120, 120, 120, 220]
+        case .celebration:   return [150, 150, 150, 150, 150, 280]
         }
     }
     var frameCount: Int { durations.count }
@@ -40,12 +39,12 @@ struct SpriteFrame: Equatable {
 
 enum SpriteAtlas {
     static let columns = 8
-    static let rows = 11                                   // version 2: 9 animation rows + 2 gaze rows
+    static let rows = 11                                   // 9 animation rows + 2 gaze rows
     static let cell = CGSize(width: 192, height: 208)
-    /// Where the character sits inside a cell (measured): x 24…167, top 8…177 (top-down), i.e. feet 30 px above the cell bottom.
-    static let characterSize = CGSize(width: 144, height: 170)
+    /// Safe artwork bounds: x 11…180, top 9…177 (top-down). Soles sit 30 px above the bottom.
+    static let characterSize = CGSize(width: 170, height: 170)
     static let feetOffset: CGFloat = 30                    // px from cell bottom to the soles
-    static let characterLeft: CGFloat = 24
+    static let characterLeft: CGFloat = 11
 
     /// Slow idle: base durations × 6 → 6600 ms per cycle.
     static let slowIdle: [(SpriteFrame, Int)] = SpriteState.idle.durations.enumerated().map { (SpriteFrame(row: 0, col: $0.offset), $0.element * 6) }
@@ -83,12 +82,19 @@ enum SpriteAtlas {
         return frames[frames.count - 1].0
     }
 
-    /// Directional gaze pose. `dx` positive = right, `dyUp` positive = up (native bottom-up coordinates).
-    /// 0° is up, 90° right, 180° down, 270° left; sixteen 22.5° sectors over rows 9 and 10.
+    /// Map cursor direction to the supplied views. The source sheet's gaze
+    /// cells are not in angular order, so this table follows the face direction.
+    /// `dx` positive = right, `dyUp` positive = up (native bottom-up coordinates).
     static func lookFrame(dx: CGFloat, dyUp: CGFloat) -> SpriteFrame {
         let angle = (atan2(dx, dyUp) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
         let sector = Int((angle / 22.5).rounded()) % 16
-        return SpriteFrame(row: 9 + sector / 8, col: sector % 8)
+        let views: [SpriteFrame] = [
+            .init(row: 9, col: 0), .init(row: 9, col: 1), .init(row: 10, col: 6), .init(row: 9, col: 4),
+            .init(row: 9, col: 5), .init(row: 9, col: 6), .init(row: 9, col: 7), .init(row: 10, col: 1),
+            .init(row: 10, col: 2), .init(row: 10, col: 3), .init(row: 10, col: 4), .init(row: 10, col: 5),
+            .init(row: 10, col: 0), .init(row: 9, col: 3), .init(row: 9, col: 2), .init(row: 10, col: 7)
+        ]
+        return views[sector]
     }
 
     static func rect(of frame: SpriteFrame) -> CGRect {   // top-down pixel rect inside the atlas image
@@ -101,12 +107,12 @@ enum SpriteAtlas {
 
     private static var recolored: [Coat: CGImage] = [:]
 
-    /// The atlas tinted for a skin: body, glyph accent and face panel recoloured separately. Made once per skin and cached.
+    /// Recolour only the dog's blue fur. Eyes, nose, mouth, outline, and laptop keep their original colours.
     static func image(for coat: Coat) -> CGImage? {
         guard let base = image else { return nil }
-        guard let tones = coat.spriteTones else { return base }
+        guard let tone = coat.spriteTone else { return base }
         if let done = recolored[coat] { return done }
-        let out = recolor(base, body: tones.body, accent: tones.accent, screenHue: tones.screenHue) ?? base
+        let out = recolor(base, body: tone) ?? base
         recolored[coat] = out
         return out
     }
@@ -131,9 +137,8 @@ enum SpriteAtlas {
         }
     }
 
-    /// Region-based recolour of the original blue art: outlines stay, cyan glyphs → accent, the white chest glyph → pale accent,
-    /// the dark face panel → screenHue, everything else (cloud, limbs) → body. Shading survives because only hue is replaced.
-    private static func recolor(_ src: CGImage, body: SpriteTone, accent: SpriteTone, screenHue: CGFloat) -> CGImage? {
+    /// Hue-shift blue fur while retaining its original shading and all dark features.
+    private static func recolor(_ src: CGImage, body: SpriteTone) -> CGImage? {
         let w = src.width, h = src.height
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
@@ -144,13 +149,8 @@ enum SpriteAtlas {
             let a = CGFloat(px[i + 3]) / 255
             if a == 0 { continue }
             let (h0, s0, v0) = hsv(CGFloat(px[i]) / 255 / a, CGFloat(px[i + 1]) / 255 / a, CGFloat(px[i + 2]) / 255 / a)
-            let t: SpriteTone
-            if v0 < 0.2 { continue }
-            else if h0 > 165 && h0 < 205 && v0 > 0.6 { t = accent }
-            else if s0 < 0.3 && v0 > 0.75 { t = SpriteTone(hue: accent.hue, sat: 0.35, val: accent.val) }
-            else if v0 < 0.45 { t = SpriteTone(hue: screenHue, sat: 1, val: 1) }
-            else { t = body }
-            let (r, g, b) = rgb(t.hue, min(1, s0 * t.sat), min(1, v0 * t.val))
+            guard (190...250).contains(h0), s0 > 0.24, v0 > 0.23 else { continue }
+            let (r, g, b) = rgb(body.hue, min(1, s0 * body.sat), min(1, v0 * body.val))
             px[i] = UInt8(max(0, min(255, r * a * 255)))
             px[i + 1] = UInt8(max(0, min(255, g * a * 255)))
             px[i + 2] = UInt8(max(0, min(255, b * a * 255)))
@@ -161,11 +161,11 @@ enum SpriteAtlas {
     private static func load() -> CGImage? {
         var candidates: [URL] = []
         if let env = ProcessInfo.processInfo.environment["PET_ATLAS"] { candidates.append(URL(fileURLWithPath: env)) }
-        if let res = Bundle.main.resourceURL { candidates.append(res.appendingPathComponent("pet-atlas.webp")) }
-        // running from `swift build`: .build/<config>/Pet → ../../Assets/pet-atlas.webp
+        if let res = Bundle.main.resourceURL { candidates.append(res.appendingPathComponent("pet-dog-atlas.png")) }
+        // running from `swift build`: .build/<config>/Pet → ../../Assets/pet-dog-atlas.png
         var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
         for _ in 0..<5 {
-            candidates.append(dir.appendingPathComponent("Assets/pet-atlas.webp"))
+            candidates.append(dir.appendingPathComponent("Assets/pet-dog-atlas.png"))
             dir.deleteLastPathComponent()
         }
         for url in candidates where FileManager.default.fileExists(atPath: url.path) {

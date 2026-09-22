@@ -11,7 +11,7 @@ Opening Pet.app again, or choosing **Open Pet home…** from either menu, opens 
 Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget, never distracting during work.
 
 - Native Swift + AppKit, no Xcode project, no dependencies. `swift build` compiles it.
-- Current character: a sprite-sheet cloud-headed robot (`Assets/pet-atlas.webp`, personal use only, not in git; see "Assets"). The old vector shark drawing remains as a fallback when the atlas is missing. The owner is preparing a new blue dog character sheet based on a GIF in Stash; do not replace the current art until that sheet arrives. The dog has no face screen.
+- Current character: the blue floppy-eared dog in `Assets/pet-dog-atlas.png` (committed and shareable). The old vector shark remains as a fallback if the PNG is missing. The private robot atlas remains on this Mac but is neither loaded nor shipped.
 - Two agents worked on this in parallel for a while with a file split (see "Ownership"); currently one agent owns everything.
 
 ## Build, run, verify
@@ -19,8 +19,12 @@ Owner: a non-technical designer. Vibe: cozy tiny friend, never a utility widget,
 ```bash
 swift build -c release                 # compile
 ./build-app.sh                         # compile + self-test + bundle → build/Pet.app
-pkill -x Pet; open build/Pet.app       # relaunch
-./build-dmg.sh                         # shareable build/Pet.dmg; private atlas excluded
+pkill -x Pet; rm -rf /Applications/Pet.app
+ditto --noextattr --noqtn build/Pet.app /Applications/Pet.app
+xattr -cr /Applications/Pet.app
+codesign --force --deep --sign - /Applications/Pet.app
+open /Applications/Pet.app            # reinstall and relaunch
+./build-dmg.sh                         # shareable build/Pet.dmg; dog atlas included
 ```
 
 Headless checks (there is no screenshot access for agents; use these):
@@ -73,13 +77,13 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 
 **Pet home/settings.** The menu bar menu and Pet's right-click menu both start with “Open Pet home…”. Reopening Pet.app also opens it. `PetHomeWindowController` calls the public setting methods on `PetController`, so the desktop character updates live. The size setting is stored as `pet.displayScale`; valid values are clamped to 0.85–1.15 and scale around the feet so Pet stays on the same screen edge. Hit-testing, ring placement and edge fitting use the scaled silhouette too. The home window returns focus to the previously active app when it closes.
 
-**Expressions:** The robot-specific overlay that replaced pixels on its face with text and sound bars has been removed. `pose.thoughtAlpha` still selects the waiting sprite pose, but no text is painted onto the sprite. The microphone watcher is not instantiated and Pet no longer requests microphone permission. When the blue dog sheet arrives, express reactions through its own face and body poses rather than drawing into a screen.
+**Expressions:** The dog uses its own face and body poses; no text or sound bars are painted over the face. `pose.thoughtAlpha` selects the waiting row. The microphone watcher is not instantiated and Pet does not request microphone permission. Nap uses the curled-up dog frame, not a rotated standing pose.
 
 **Hover/click.** The pet window is click-through unless `petContains(mouse)` (hit path from `PetGeometry.hitPath`). Resting the cursor ~0.3 s on the body opens the ring; the ring window is likewise click-through except on chips. `updateHover` owns this; `RingPanel.keepsOpen(for:)` decides when the ring stays open.
 
 **Ring fitting.** `RingPanel.show()` → `bestFit()` searches rotation × arc width × radius so no chip is off-screen or over the pet, then sizes its own window. Magnification is a continuous Dock layout in `RingView.update`.
 
-**Pose contract.** The controller only writes `PetPose` fields (`bob, squashX/Y, tilt, facing, eyeOpen, eyeStyle, look, earPerk, mouth, chomp, smile, flop, blush, thought/thoughtAlpha, particles, walk, listening, music, discAngle, ceiling, coat …`). `submerged`/`waterline` are always 0 now (water era); the screen-edge clipping is a layer mask set by `applyScreenClip()`. The view maps them to sprite rows (see `VISUALS-HANDOFF.md` for the table). Adding a new behaviour usually means: a state or timer in the controller → a pose field → a mapping in the view.
+**Pose contract.** The controller only writes `PetPose` fields (`bob, squashX/Y, tilt, facing, eyeOpen, eyeStyle, look, earPerk, mouth, chomp, smile, flop, blush, thought/thoughtAlpha, particles, walk, listening, music, discAngle, ceiling, coat …`). `submerged`/`waterline` are always 0 now (water era); the screen-edge clipping is a layer mask set by `applyScreenClip()`. The view maps them to dog sprite rows (see `VISUALS-HANDOFF.md` for the table). Adding a new behaviour usually means: a state or timer in the controller → a pose field → a mapping in the view.
 
 **Mood.** `Mood` (Shy/Normal/Chatty) + quiet hours + Shh scale thought frequency, peeks and hide chance. Defaults: Normal, quiet hours off.
 
@@ -93,16 +97,15 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 
 ## Assets
 
-`Assets/pet-atlas.webp` is the Codex pet sprite sheet, used for the owner's own desktop only. It is **not committed** (see `.gitignore`); `build-app.sh` copies it into the app bundle when present. Without it the app draws the fallback vector character. `PET_ATLAS=<path>` overrides the location.
+`Assets/pet-dog-source.png` is the supplied grid sheet. `Tools/prepare-dog-atlas.swift` cleans and normalizes it into transparent `Assets/pet-dog-atlas.png` (1536×2288, 8×11 cells of 192×208) and a separate labelled `Assets/pet-dog-atlas-preview.png`. All used cells have paws/soles about 30 px above their bottoms. `build-app.sh` bundles only the unlabelled dog PNG; `build-dmg.sh` keeps it in the shareable app. `PET_ATLAS=<path>` can override the atlas for testing. The old `Assets/pet-atlas.webp` remains private and ignored by Git, and no default loader path points to it. A Developer ID Application certificate is not currently installed, so the DMG is ad-hoc signed and recipients may need right-click → Open once.
 
-`build-dmg.sh` always removes the atlas from the copy placed in `build/Pet.dmg`, then re-signs that shareable copy. The local `build/Pet.app` and `/Applications/Pet.app` can continue using the atlas. A Developer ID Application certificate is not currently installed, so the DMG is ad-hoc signed and recipients may need right-click → Open once.
+The project is in a synced Documents folder, which can add Finder/file-provider attributes that invalidate a signature there. `build-dmg.sh` stages the shareable copy under `/private/tmp`, clears attributes, signs it, and verifies its signature before packaging. Use `ditto --noextattr --noqtn` and re-sign when installing in `/Applications`. A snapshot request from a sandboxed shell may not reach the running app; retry the `--snapshot` command with local process permissions and check the output file's modification time.
 
 ## Known gaps / ideas not built
 
-- Sprite rows with no trigger yet: `failed`, `running` (laptop), `review`. Wire a pose signal in the controller, then map it in the view.
+- Sprite rows with no trigger yet: gentle oops, laptop, celebration. Wire a pose signal in the controller, then map it in the view.
 - Music: the player chip works; the "spinning disc" visual for `pose.music`/`discAngle` is not drawn yet.
-- The lying-down nap is the closed-eyes idle frame rotated 90°; a real lying sprite would look better.
-- The new blue dog sheet is pending. The supplied GIF is a visual reference, not a drop-in atlas: it has a peach background and does not provide separate transparent cells for every app pose. When it arrives, update the sprite geometry, skin recolouring and previews to suit the dog.
+- Nap uses the sheet's own closed-eyes lying pose.
 - Recents in the ring are disabled (`RingConfig.maxRecents = 0`) at the owner's request; the code path still works.
 - Drops from Chrome/Photos that arrive as file promises are not received (only real files, images, links, text).
 - Multi-monitor: edge logic uses the screen under the character; seams between monitors are avoided but not heavily tested.

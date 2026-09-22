@@ -1,6 +1,6 @@
 import AppKit
 
-/// Draws the pet with Core Graphics. Everything is vector, so it stays crisp on any screen.
+/// Draws the dog atlas, with the old vector fallback when the PNG is unavailable.
 final class PetView: NSView {
     var pose = PetPose() { didSet { needsDisplay = true } }
     weak var controller: PetController?
@@ -151,7 +151,7 @@ final class PetView: NSView {
         if let o = spriteFrameOverride {
             frame = o
         } else if napping {
-            frame = SpriteFrame(row: 0, col: 1)                                              // the closed-eyes idle frame
+            frame = SpriteFrame(row: 5, col: 2)                                              // dog curled up with eyes closed
         } else {
             frame = SpriteAtlas.frame(for: state, elapsed: TimeInterval(p.time - spriteStateStart), reducedMotion: reduced, loop: p.walk != 0)
             let lookMag = hypot(p.look.x, p.look.y)
@@ -165,16 +165,9 @@ final class PetView: NSView {
         let feet = CGPoint(x: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom)
         ctx.saveGState()
         ctx.translateBy(x: feet.x, y: feet.y + p.bob)
-        ctx.scaleBy(x: p.squashX, y: p.squashY)
-        ctx.rotate(by: p.tilt * 0.6)
-        if p.flop > 0.01 {
-            // lie down: roll onto the back (head away from the ground) and rest the whole body on the floor
-            let half = PetGeometry.characterHalfHeight
-            let angle = -p.facing * p.flop * .pi / 2
-            let restShift = (half - PetGeometry.bodyHalfWidth) * p.flop   // lying, the body is only as tall as it is wide
-            ctx.translateBy(x: 0, y: half - restShift)
-            ctx.rotate(by: angle)
-            ctx.translateBy(x: 0, y: -half)
+        if !napping {
+            ctx.scaleBy(x: p.squashX, y: p.squashY)
+            ctx.rotate(by: p.tilt * 0.6)
         }
         ctx.translateBy(x: -feet.x, y: -feet.y)
         ctx.interpolationQuality = .high
@@ -475,21 +468,25 @@ final class PetView: NSView {
         str.draw(at: CGPoint(x: bubble.midX - size.width / 2, y: bubble.midY - size.height / 2 + 0.5))
     }
 
-    /// Top of the drawn character (the cloud head for the sprite, the fin-less body for the shark).
+    /// Top of the drawn character (dog ears for the sprite, fin-less body for the shark).
     private func topNow(_ p: PetPose) -> CGFloat { p.bodyTopNow + (SpriteAtlas.image != nil ? PetGeometry.earHeight * p.squashY : 0) }
 
     private func drawZzz(_ ctx: CGContext, _ p: PetPose) {
         guard p.zzz > 0.01 else { return }
         let c = PetGeometry.bodyCenter
+        let dogNap = SpriteAtlas.image != nil && (p.eyeStyle == .closed || p.flop > 0.5)
+        let direction: CGFloat = dogNap ? 1 : p.facing
         var base = CGPoint(x: c.x + p.facing * 26, y: topNow(p) - 12)
-        if p.flop > 0.5 {   // lying down: the head is off to the side, near the ground
+        if dogNap {
+            base = CGPoint(x: c.x + 28, y: PetGeometry.bodyBottom + 66)
+        } else if p.flop > 0.5 {   // vector fallback: head is off to the side
             base = CGPoint(x: c.x + p.facing * (PetGeometry.characterHalfHeight - 10), y: PetGeometry.bodyBottom + PetGeometry.bodyHalfWidth * 2 - 6)
         }
         for i in 0..<3 {
             let phase = (p.time * 0.45 + CGFloat(i) / 3).truncatingRemainder(dividingBy: 1)
             let alpha = p.zzz * min(1, phase * 3) * (1 - phase)
             let size = 10 + 9 * phase
-            let pt = CGPoint(x: base.x + p.facing * (8 + 24 * phase) + 4 * sin(phase * 7),
+            let pt = CGPoint(x: base.x + direction * (8 + 24 * phase) + 4 * sin(phase * 7),
                              y: base.y + 34 * phase)
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: roundedFont(size, .bold),
@@ -574,20 +571,20 @@ enum IconRenderer {
         let base = PetPose()
         cells.append(("idle", base, SpriteFrame(row: 0, col: 0)))
         cells.append(("idle blink", base, SpriteFrame(row: 0, col: 1)))
-        cells.append(("running-right", base, SpriteFrame(row: 1, col: 2)))
-        cells.append(("running-left", base, SpriteFrame(row: 2, col: 2)))
+        cells.append(("walk right", base, SpriteFrame(row: 1, col: 2)))
+        cells.append(("walk left", base, SpriteFrame(row: 2, col: 2)))
         cells.append(("waving", base, SpriteFrame(row: 3, col: 1)))
         cells.append(("jumping", base, SpriteFrame(row: 4, col: 2)))
-        cells.append(("failed", base, SpriteFrame(row: 5, col: 2)))
+        cells.append(("gentle oops", base, SpriteFrame(row: 5, col: 1)))
         cells.append(("waiting", base, SpriteFrame(row: 6, col: 1)))
-        cells.append(("running", base, SpriteFrame(row: 7, col: 1)))
-        cells.append(("review", base, SpriteFrame(row: 8, col: 2)))
+        cells.append(("laptop", base, SpriteFrame(row: 7, col: 1)))
+        cells.append(("celebrate", base, SpriteFrame(row: 8, col: 2)))
         cells.append(("look 45°", base, SpriteAtlas.lookFrame(dx: 1, dyUp: 1)))
         cells.append(("look 270°", base, SpriteAtlas.lookFrame(dx: -1, dyUp: 0)))
         var p = base; p.eyeStyle = .closed; p.zzz = 1; p.shadow = 1
-        cells.append(("nap", p, SpriteFrame(row: 0, col: 1)))
+        cells.append(("nap", p, SpriteFrame(row: 5, col: 2)))
         p = base; p.walk = 1; p.squashX = 0.75; p.squashY = 0.75; cells.append(("stroll (compact)", p, SpriteFrame(row: 1, col: 3)))
-        p = base; p.flop = 1; p.eyeStyle = .closed; p.zzz = 1; cells.append(("lying nap", p, SpriteFrame(row: 0, col: 1)))
+        p = base; p.flop = 1; p.eyeStyle = .closed; p.zzz = 1; cells.append(("lying nap", p, SpriteFrame(row: 5, col: 2)))
         for coat in Coat.allCases {
             p = base; p.coat = coat
             cells.append((coat.title, p, SpriteFrame(row: 0, col: 0)))

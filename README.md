@@ -1,11 +1,11 @@
 # Pet
 
-A tiny desktop companion for your Mac. A cloud-headed robot sits at the edge of your screen,
+A tiny desktop companion for your Mac. A blue floppy-eared dog sits at the edge of your screen,
 opens a ring of your favourite apps when you rest the cursor on it, keeps things you drop on it,
 and gets out of the way while you work.
 
 ## Run it
-- Double-click `build/Pet.app` (or drag it to Applications first). A small fin icon appears in the
+- Double-click `build/Pet.app` (or drag it to Applications first). A small Pet icon appears in the
   menu bar; there is no Dock icon.
 - Lost it? Click the menu-bar icon → "Come here", or double-click Pet.app again.
 - Right-click the pet → "Open at login" so it comes back after a restart.
@@ -22,18 +22,18 @@ and gets out of the way while you work.
   click it to play/pause (macOS asks once for permission).
 - **Move it**: drag it anywhere. Near an edge it tucks into that edge; elsewhere it stays put.
 - **Out of the way**: when you type for a while, when you've been in one app for 15 minutes, or
-  when you pick "Shh for an hour", it shrinks to half size and strolls along the edge. Move your
-  cursor near it and it grows back. Fullscreen apps hide it completely.
+  when you pick "Shh for an hour", it shrinks to three-quarter size and strolls along the edge.
+  Move your cursor near it and it grows back. It stays visible across full-screen app Spaces.
 - **Click** it to poke. **Double-click** to jump to the app you were using before.
-- **Talks on its screen**: little messages and expressions show on its TV face. During a call,
-  sound bars appear while you speak (macOS asks once for microphone access).
-- Right-click menu: apps, clipboard, stash, hide, nap, come here, shh, skin, mood, quiet hours,
+- **Expressions**: its ears, eyes, face and body poses show how it feels. There is no face screen.
+- Right-click menu: Pet home, apps, stash, hide, nap, come here, shh, skin, mood, quiet hours,
   dive-while-app, hug edges, hide from screenshots, open at login, quit.
 
 ## Permissions
-Microphone (asked once, only during a call, so it can react when you speak) and Automation for the music app (asked once, for play/pause). Nothing else.
+Automation may be requested for music-app play/pause. Pet does not request microphone access.
 
 ## For developers / agents
 See `AGENTS.md` for the code map, how to verify without a screen, and what is unfinished.
-The character sprite sheet (`Assets/pet-atlas.webp`) is not in the repository; without it the
-app draws a fallback vector character.
+The shareable dog sprite sheet is `Assets/pet-dog-atlas.png`. Regenerate it and its labelled
+preview from `Assets/pet-dog-source.png` with `Tools/prepare-dog-atlas.swift`. Without the atlas,
+the app draws a fallback vector character. The old private robot atlas is not loaded or shipped.

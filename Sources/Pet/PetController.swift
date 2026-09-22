@@ -327,7 +327,7 @@ final class PetController: NSObject, NSMenuDelegate {
         NSScreen.screens.first { $0.frame.contains(point) } ?? currentScreen
     }
 
-    /// True when a screen point is on the shark's visible silhouette.
+    /// True when a screen point is on the pet's visible silhouette.
     func petContains(_ point: CGPoint) -> Bool {
         let local = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
         guard scaledHitPath().contains(local) else { return false }
@@ -342,7 +342,10 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     private func scaledHitPath() -> CGPath {
-        let path = PetGeometry.hitPath(bob: pose.bob, facing: pose.facing, squashX: pose.squashX, squashY: pose.squashY)
+        let napping = SpriteAtlas.image != nil && (pose.eyeStyle == .closed || pose.flop > 0.5)
+        let path = PetGeometry.hitPath(bob: pose.bob, facing: pose.facing,
+                                       squashX: napping ? 1 : pose.squashX,
+                                       squashY: napping ? 1 : pose.squashY, napping: napping)
         var transform = CGAffineTransform(translationX: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom)
             .scaledBy(x: petScale, y: petScale)
             .translatedBy(x: -PetGeometry.bodyCenter.x, y: -PetGeometry.bodyBottom)

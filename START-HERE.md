@@ -5,7 +5,7 @@ Git: https://github.com/neeraj-trax/pet-companion (private, branch `main`, clean
 
 1. Read `AGENTS.md` in this folder first. It has the code map, how the app works, how to verify without a screen, and the list of what is unfinished. Do not read every source file before starting.
 2. Read `VISUALS-HANDOFF.md` only if you are touching the drawing (`PetView.swift`, `Sprite.swift`).
-3. The character art `Assets/pet-atlas.webp` is on this Mac but not in git. Without it the app falls back to a vector character; do not commit the atlas.
+3. The dog character art is `Assets/pet-dog-atlas.png` and is included in shareable builds. The old private `Assets/pet-atlas.webp` remains ignored by Git and is not loaded or shipped.
 
 ## Build and run
 
@@ -14,12 +14,16 @@ cd "/Users/passwordis1234/Documents/claude max experiment/PET"
 swift build -c release          # compile
 ./build-app.sh                  # compile + self-test + bundle → build/Pet.app
 pkill -x Pet
-rm -rf /Applications/Pet.app && cp -R build/Pet.app /Applications/Pet.app && open /Applications/Pet.app
+rm -rf /Applications/Pet.app
+ditto --noextattr --noqtn build/Pet.app /Applications/Pet.app
+xattr -cr /Applications/Pet.app
+codesign --force --deep --sign - /Applications/Pet.app
+open /Applications/Pet.app
 ```
 
 The installed copy the owner uses is `/Applications/Pet.app`, so always reinstall it after a build.
 
-To create a shareable disk image, run `./build-dmg.sh`. It writes `build/Pet.dmg`, includes an Applications shortcut, and deliberately removes the personal-use sprite atlas. The DMG is ad-hoc signed unless a Developer ID distribution identity is added later, so another Mac may require right-click → Open on first launch.
+To create a shareable disk image, run `./build-dmg.sh`. It writes `build/Pet.dmg`, includes an Applications shortcut and the dog atlas, and excludes the private robot atlas. The DMG is ad-hoc signed unless a Developer ID distribution identity is added later, so another Mac may require right-click → Open on first launch.
 
 ## Verify without a screen (no screenshot access)
 

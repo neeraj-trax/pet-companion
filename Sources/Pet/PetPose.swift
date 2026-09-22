@@ -54,24 +54,24 @@ struct PetPose {
 /// A colour for one region of the sprite: absolute hue in degrees, multipliers on the original saturation and value.
 struct SpriteTone { var hue: CGFloat; var sat: CGFloat; var val: CGFloat }
 
-/// Skins the user can pick. `body`/`shade` colour the ripples and particles; `spriteTones` recolours the sprite
-/// (body, screen-glyph accent, face-panel hue). nil = the atlas's original blue.
+/// Skins the user can pick. `body`/`shade` colour effects; `spriteTone` recolours only dog fur.
+/// nil keeps the source art's original blue.
 enum Coat: String, CaseIterable, Hashable {
     case sand, hojiro, deep, sakura, mint, charcoal
     var title: String {
         switch self {
-        case .sand: return "Sand + orange"; case .hojiro: return "Original blue"; case .deep: return "Navy + cyan"
-        case .sakura: return "Coral + mint"; case .mint: return "Forest + amber"; case .charcoal: return "Charcoal + amber"
+        case .sand: return "Sand"; case .hojiro: return "Original blue"; case .deep: return "Deep navy"
+        case .sakura: return "Coral"; case .mint: return "Forest green"; case .charcoal: return "Charcoal"
         }
     }
-    var spriteTones: (body: SpriteTone, accent: SpriteTone, screenHue: CGFloat)? {
+    var spriteTone: SpriteTone? {
         switch self {
         case .hojiro:   return nil
-        case .sand:     return (SpriteTone(hue: 38, sat: 0.5, val: 1.0), SpriteTone(hue: 22, sat: 1.4, val: 1.0), 30)
-        case .deep:     return (SpriteTone(hue: 225, sat: 1.1, val: 0.62), SpriteTone(hue: 185, sat: 1.2, val: 1.0), 225)
-        case .sakura:   return (SpriteTone(hue: 12, sat: 0.85, val: 1.0), SpriteTone(hue: 150, sat: 1.3, val: 1.0), 350)
-        case .mint:     return (SpriteTone(hue: 145, sat: 0.9, val: 0.72), SpriteTone(hue: 45, sat: 1.4, val: 1.0), 150)
-        case .charcoal: return (SpriteTone(hue: 220, sat: 0.10, val: 0.55), SpriteTone(hue: 40, sat: 1.4, val: 1.0), 230)
+        case .sand:     return SpriteTone(hue: 38, sat: 0.5, val: 1.0)
+        case .deep:     return SpriteTone(hue: 225, sat: 1.1, val: 0.62)
+        case .sakura:   return SpriteTone(hue: 12, sat: 0.85, val: 1.0)
+        case .mint:     return SpriteTone(hue: 145, sat: 0.9, val: 0.72)
+        case .charcoal: return SpriteTone(hue: 220, sat: 0.10, val: 0.55)
         }
     }
     var body: NSColor {
@@ -100,24 +100,24 @@ enum Coat: String, CaseIterable, Hashable {
 
 enum PetGeometry {
     static let viewSize = CGSize(width: 170, height: 170)
-    /// Sprite character: 144 x 170 atlas px drawn at `spriteScale` → 102 x 120 pt, feet on `bodyBottom`.
-    static let spriteScale: CGFloat = 120.0 / 170.0
+    /// Dog sprites are up to 170 px wide and tall. Idle stands about 108 pt tall.
+    static let spriteScale: CGFloat = 0.82
     static let bodyCenter = CGPoint(x: 85, y: 74)   // unchanged: the controller's grab/dive thresholds hang off this
-    static let bodyHalfWidth: CGFloat = 51
+    static let bodyHalfWidth: CGFloat = 70
     static let bodyHalfHeight: CGFloat = 46          // bodyBottom 28 … bodyTop 120
-    /// Half the drawn character's height (feet to the top of the cloud), used to roll it over for the nap.
+    /// Half the drawn character's maximum height.
     static var characterHalfHeight: CGFloat { (bodyHalfHeight * 2 + earHeight) / 2 }
-    static let earHeight: CGFloat = 28               // the cloud head rises to earTop = 148
+    static let earHeight: CGFloat = 47               // tallest pose reaches about 167 pt
     /// Area (view coords) that counts as "the pet" for hover and clicks.
-    static let hitRect = CGRect(x: 30, y: 24, width: 110, height: 128)
-    /// How far the body sinks below the screen edge when only the top of the head shows (~32pt of cloud).
-    static let submergeDepth: CGFloat = 88
-    /// Depth fraction where the face screen is just above the water (periscope).
-    static let periscopeFraction: CGFloat = 46.0 / 88.0
+    static let hitRect = CGRect(x: 12, y: 24, width: 146, height: 146)
+    /// How far the body sinks below the screen edge when only the ears peek out.
+    static let submergeDepth: CGFloat = 108
+    /// Legacy edge-peek fraction, retained for the controller's position math.
+    static let periscopeFraction: CGFloat = 76.0 / 108.0
 
     /// Origin of the sprite cell in view coords (before bob/squash), so the character's feet sit on bodyBottom.
     static var spriteCellOrigin: CGPoint {
-        CGPoint(x: bodyCenter.x - (24 + 72) * spriteScale, y: bodyBottom - 30 * spriteScale)
+        CGPoint(x: bodyCenter.x - 96 * spriteScale, y: bodyBottom - SpriteAtlas.feetOffset * spriteScale)
     }
 
     /// The canonical body silhouette in body-local coords (origin at bodyCenter, y up, face toward +x).
@@ -138,14 +138,18 @@ enum PetGeometry {
 
     /// The shark's silhouette (body + fin + flippers + tail) in view coords, used for precise hover/click testing
     /// so empty pixels around it stay click-through.
-    static func hitPath(bob: CGFloat, facing: CGFloat, squashX: CGFloat = 1, squashY: CGFloat = 1) -> CGPath {
+    static func hitPath(bob: CGFloat, facing: CGFloat, squashX: CGFloat = 1, squashY: CGFloat = 1, napping: Bool = false) -> CGPath {
         let path = CGMutablePath()
         let t = CGAffineTransform(translationX: bodyCenter.x, y: bodyBottom + bob)
             .scaledBy(x: facing * squashX, y: squashY)
             .translatedBy(x: 0, y: bodyHalfHeight)
         if SpriteAtlas.image != nil {
-            // the whole sprite character: feet at bodyBottom, cloud top at earTop
             let w = bodyHalfWidth, h = bodyHalfHeight
+            if napping {
+                path.addPath(CGPath(roundedRect: CGRect(x: -68, y: -h, width: 136, height: 85), cornerWidth: 22, cornerHeight: 22, transform: nil), transform: t)
+                return path
+            }
+            // the whole dog: paws at bodyBottom, ears below earTop
             path.addPath(CGPath(roundedRect: CGRect(x: -w, y: -h, width: 2 * w, height: 2 * h + earHeight), cornerWidth: 34, cornerHeight: 34, transform: nil), transform: t)
             return path
         }
@@ -161,7 +165,7 @@ enum PetGeometry {
 
     static var bodyBottom: CGFloat { bodyCenter.y - bodyHalfHeight }   // 28
     static var bodyTop: CGFloat { bodyCenter.y + bodyHalfHeight }      // 120
-    static var earTop: CGFloat { bodyTop + earHeight }                 // 144 (fin tip)
+    static var earTop: CGFloat { bodyTop + earHeight }                 // 167
 }
 
 @inline(__always)

@@ -17,7 +17,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Pet "$APP/Contents/MacOS/Pet"
 cp Info.plist "$APP/Contents/Info.plist"
-cp Assets/pet-atlas.webp "$APP/Contents/Resources/pet-atlas.webp"
+cp Assets/pet-dog-atlas.png "$APP/Contents/Resources/pet-dog-atlas.png"
 
 echo "Drawing icon…"
 ICONSET="build/Pet.iconset"
