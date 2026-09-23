@@ -52,6 +52,10 @@ final class RingPanel: NSPanel {
     var recents: [URL] = []
     var nowPlaying: MusicWatcher.Track?
     private(set) var isShown = false
+    var readyForSelection: Bool {
+        guard isShown, ring.appearT >= 1, let first = ring.chipCentre(0) else { return false }
+        return ring.chipIndex(at: first) == 0
+    }
 
     var config = RingConfig()
     private let ring = RingView()
@@ -100,7 +104,7 @@ final class RingPanel: NSPanel {
 
     // MARK: show / hide
 
-    /// Centre the ring on the shark's body and open the fan away from its edge.
+    /// Centre the ring on Pet's body and open the arc away from its edge.
     func show(near petRect: CGRect, edge: ScreenEdge, screen f: CGRect, centreX: CGFloat? = nil) {
         hideWork?.cancel()
         lastEdge = edge
@@ -120,10 +124,10 @@ final class RingPanel: NSPanel {
         ring.edge = edge
         ring.centre = CGPoint(x: size.width / 2, y: size.height / 2)
         setFrameOrigin(CGPoint(x: (centre.x - size.width / 2).rounded(), y: (centre.y - size.height / 2).rounded()))
-        ring.appearT = 0
-        ring.closing = false
-        ring.captionText = ""
-        ring.needsDisplay = true
+        ring.prepareForImmediateOpen()
+        let pointer = NSEvent.mouseLocation
+        let localPointer = CGPoint(x: pointer.x - frame.minX, y: pointer.y - frame.minY)
+        ignoresMouseEvents = ring.chipIndex(at: localPointer) == nil
         alphaValue = 1
         orderFrontRegardless()
         isShown = true
@@ -270,7 +274,7 @@ final class RingPanel: NSPanel {
     fileprivate func contextMenu(for item: RingItem, event: NSEvent) {
         guard case .app(let url, let pinned) = item.kind else { return }
         let menu = NSMenu()
-        let title = pinned ? "Remove \(item.title) from shark" : "Pin \(item.title) to shark"
+        let title = pinned ? "Remove \(item.title) from Pet" : "Pin \(item.title) to Pet"
         let mi = NSMenuItem(title: title, action: #selector(menuTapped(_:)), keyEquivalent: "")
         mi.target = self
         mi.representedObject = [url.path, pinned ? "remove" : "pin"]
@@ -326,6 +330,22 @@ final class RingView: NSView {
         velocities = Array(repeating: 0, count: items.count)
         targets = scales
         positions = baseAngles().map { angle in point(at: angle, r: cfg.layout.radius) }
+    }
+
+    /// Put every chip at its final position before the panel appears, so the
+    /// visible ring and its click targets are ready on the same frame.
+    func prepareForImmediateOpen() {
+        appearT = 1
+        closing = false
+        captionText = ""
+        captionAlpha = 0
+        hovered = nil
+        pressed = nil
+        scales = Array(repeating: 1, count: items.count)
+        velocities = Array(repeating: 0, count: items.count)
+        targets = scales
+        positions = baseAngles().map { angle in point(at: angle, r: cfg.layout.radius) }
+        needsDisplay = true
     }
 
     // MARK: geometry

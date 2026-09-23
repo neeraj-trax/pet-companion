@@ -1,6 +1,6 @@
 import AppKit
 
-/// Geometry for the ring of app icons around the shark. Pure math, shared by the preview and the real panel.
+/// Geometry for the ring of app icons around Pet. Pure math, shared by the preview and the real panel.
 struct RingLayout {
     var radius: CGFloat = 100        // distance from the ring centre to each chip centre
     var chip: CGFloat = 44           // chip diameter
@@ -39,7 +39,7 @@ struct RingLayout {
     var windowSize: CGFloat { (radius + chip / 2) * 2 + 40 }
 }
 
-/// Debug: renders ring-layout variants around the shark so the layout can be locked before wiring it up.
+/// Debug: renders ring-layout variants around Pet so the layout can be checked without a screen.
 enum RingPreview {
 
     /// The ring fitted for a pet in each corner / edge of a small fake screen.
@@ -84,30 +84,26 @@ enum RingPreview {
         try? png.write(to: url)
     }
 
-    /// Frames of the pop-in animation (no cursor), left to right.
+    /// The first visible frame of the immediately available ring.
     static func renderAppear(to url: URL) {
         let panel = RingPanel()
         let view = PetView(frame: CGRect(origin: .zero, size: PetGeometry.viewSize))
         var pose = PetPose(); pose.mouth = .happy; pose.smile = 1; pose.earPerk = 1; pose.blush = 1; pose.shadow = 1
         view.pose = pose
-        let steps: [CGFloat] = [0.12, 0.25, 0.4, 0.55, 0.75, 1.0]
         let cell = panel.frame.width, scale: CGFloat = 1.5
-        let image = NSImage(size: NSSize(width: cell * CGFloat(steps.count) * scale, height: cell * scale), flipped: false) { rect in
+        let image = NSImage(size: NSSize(width: cell * scale, height: cell * scale), flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             ctx.scaleBy(x: scale, y: scale)
-            for (n, t) in steps.enumerated() {
-                let ox = CGFloat(n) * cell
-                NSColor(white: 0.95, alpha: 1).setFill()
-                CGRect(x: ox + 1, y: 1, width: cell - 2, height: cell - 2).fill()
-                guard let ring = panel.previewImage(cursorOnChip: -1, appear: t) else { continue }
-                ring.draw(in: CGRect(x: ox, y: 0, width: cell, height: cell), from: .zero, operation: .sourceOver, fraction: 1)
-                ctx.saveGState()
-                ctx.translateBy(x: ox + cell / 2 - PetGeometry.bodyCenter.x, y: cell / 2 - PetGeometry.bodyCenter.y - 34)
-                view.draw(view.bounds)
-                ctx.restoreGState()
-                NSAttributedString(string: "t=\(t)", attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.darkGray])
-                    .draw(at: CGPoint(x: ox + 10, y: 8))
-            }
+            NSColor(white: 0.95, alpha: 1).setFill()
+            CGRect(x: 1, y: 1, width: cell - 2, height: cell - 2).fill()
+            guard let ring = panel.previewImage(cursorOnChip: -1, appear: 1) else { return false }
+            ring.draw(in: CGRect(x: 0, y: 0, width: cell, height: cell), from: .zero, operation: .sourceOver, fraction: 1)
+            ctx.saveGState()
+            ctx.translateBy(x: cell / 2 - PetGeometry.bodyCenter.x, y: cell / 2 - PetGeometry.bodyCenter.y - 34)
+            view.draw(view.bounds)
+            ctx.restoreGState()
+            NSAttributedString(string: "first frame", attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.darkGray])
+                .draw(at: CGPoint(x: 10, y: 8))
             return true
         }
         guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),

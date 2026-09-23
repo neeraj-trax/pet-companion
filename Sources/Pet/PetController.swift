@@ -247,9 +247,12 @@ final class PetController: NSObject, NSMenuDelegate {
         timer = t
     }
 
-    /// Faster frames only when something is actually moving; slow ticks while the shark just breathes.
+    /// Faster frames during movement or pointer interaction; slower ticks while Pet rests.
     private func desiredInterval(mouse: CGPoint) -> TimeInterval {
         if screenAsleep { return 2.0 }
+        if launchPanel.isShown || hitRectOnScreen.insetBy(dx: -48, dy: -48).contains(mouse) {
+            return 1.0 / 60.0
+        }
         if followingCursor { return followSpeed > 20 ? 1.0 / 60.0 : 1.0 / 30.0 }
         switch state {
         case .landing, .dragging, .wandering, .poked, .shrinking, .growing: return 1.0 / 60.0
@@ -503,6 +506,10 @@ final class PetController: NSObject, NSMenuDelegate {
         let f = currentScreen.visibleFrame
         let petRect = hitRectOnScreen
         let overPet = mouse.y >= f.minY - 2 && petContains(mouse)
+        // A passive halo makes the ring easier to find without taking clicks
+        // away from the app underneath. Only the actual dog receives mouse events.
+        let halo = petRect.insetBy(dx: -18 * petScale, dy: -18 * petScale)
+        let nearPet = f.insetBy(dx: -2, dy: -2).contains(mouse) && halo.contains(mouse)
         let overPanel = launchPanel.keepsOpen(for: mouse)
 
         if state != .dragging && !pressed {
@@ -510,34 +517,28 @@ final class PetController: NSObject, NSMenuDelegate {
             if ignore != lastIgnoresMouse { window.ignoresMouseEvents = ignore; lastIgnoresMouse = ignore }
         }
 
-        if followingCursor {
-            hoverDwell = 0
-            if launchPanel.isShown { launchPanel.hide() }
-            return
-        }
-
-        if overPet || overPanel {
+        if nearPet || overPanel {
             hoverGrace = 0
-            let resting = cursorSpeed < 60 && NSEvent.pressedMouseButtons == 0
-            if overPet && resting { hoverDwell += dt } else if cursorSpeed > 600 { hoverDwell = 0 }
+            if nearPet { hoverDwell += dt } else { hoverDwell = 0 }
             if time < panelCooldownUntil { hoverDwell = 0 }
-            if !launchPanel.isShown, overPet, hoverDwell > 0.3, time > panelCooldownUntil, !pressed {
+            let ready = overPet || (nearPet && hoverDwell >= 0.07)
+            if !launchPanel.isShown, ready, time >= panelCooldownUntil, !pressed,
+               NSEvent.pressedMouseButtons == 0, !dropHovering, state != .dragging {
                 switch state {
-                case .dragging, .landing, .shrinking, .growing: break
-                case .strolling:
-                    grow(fast: true, openPanel: true)
-                    hoverDwell = 0
+                case .strolling, .shrinking:
+                    grow(fast: true, openPanel: false)
                 default:
-                    if (edge == .left || edge == .right) && peek < 0.9 { hoverDwell = 0.2; break }   // come out first
                     if state == .napping { wake() }
                     if state == .wandering { enterIdle() }
+                }
+                if launchPanel.config.maxRecents > 0 {
                     launchPanel.recents = switchBackApps
                     launchPanel.reload()
-                    launchPanel.show(near: petRect, edge: edge, screen: f, centreX: bodyCenterOnScreen.x)
-                    if !UserDefaults.standard.bool(forKey: Keys.pillHint) {
-                        UserDefaults.standard.set(true, forKey: Keys.pillHint)
-                        launchPanel.flash("click an app · + adds one · drop files on me", for: 6)
-                    }
+                }
+                launchPanel.show(near: petRect, edge: edge, screen: f, centreX: bodyCenterOnScreen.x)
+                if !UserDefaults.standard.bool(forKey: Keys.pillHint) {
+                    UserDefaults.standard.set(true, forKey: Keys.pillHint)
+                    launchPanel.flash("click an app · + adds one · drop files on me", for: 6)
                 }
             }
         } else {
@@ -611,7 +612,7 @@ final class PetController: NSObject, NSMenuDelegate {
     /// Keep Pet near the pointer without covering it. Hovering Pet pauses the chase so
     /// a double-click or drag remains possible.
     private func updateFollow(dt: TimeInterval, mouse: CGPoint) {
-        guard !pressed, !petContains(mouse) else { followSpeed = 0; return }
+        guard !pressed, !petContains(mouse), !launchPanel.isShown else { followSpeed = 0; return }
         let destinationScreen = screen(containing: mouse)
         let bodyY = PetGeometry.bodyBottom + (PetGeometry.bodyCenter.y - PetGeometry.bodyBottom) * petScale
         let visible = destinationScreen.visibleFrame
@@ -729,7 +730,7 @@ final class PetController: NSObject, NSMenuDelegate {
             think("brb ~", for: 1.2)
         }
         if launchPanel.isShown { launchPanel.hide() }
-        panelCooldownUntil = time + 1
+        panelCooldownUntil = time + 0.1
         curiousT = -1
         state = .shrinking
         stateTime = 0
@@ -1351,7 +1352,7 @@ final class PetController: NSObject, NSMenuDelegate {
         edge = .free
         peek = 1; peekTarget = 1
         hoverDwell = 0
-        panelCooldownUntil = time + 0.5
+        panelCooldownUntil = time + 0.1
         lastClickAt = -10
         if launchPanel.isShown { launchPanel.hide() }
         if state == .napping { lastNapEnded = time }
@@ -1641,6 +1642,11 @@ final class PetController: NSObject, NSMenuDelegate {
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0))); enterIdle(); step(0.5)
         shhHour(); step(4); expect(isMini, "shh strolls small"); shhHour(); step(3); expect(!isMini, "shh off grows back")
 
+        startStroll(.menu); step(0.3)
+        testMouse = bodyCenterOnScreen
+        step(1.0 / 60.0)
+        expect(launchPanel.readyForSelection && state == .growing, "compact Pet opens a clickable ring before growing finishes")
+
         setFollowingCursor(true)
         testMouse = CGPoint(x: f.midX, y: f.midY)
         step(2)
@@ -1672,6 +1678,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let pausedOrigin = origin
         step(0.3)
         expect(hypot(origin.x - pausedOrigin.x, origin.y - pausedOrigin.y) < 1, "hovering pauses follow for clicks")
+        expect(launchPanel.readyForSelection, "follow mode opens a clickable app ring when hovered")
         let followMenuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
         expect(followMenuTitles.contains("Stop following"), "follow menu shows stop action")
         petMouseDown(at: bodyCenterOnScreen); petMouseUp(at: bodyCenterOnScreen)
@@ -1683,6 +1690,19 @@ final class PetController: NSObject, NSMenuDelegate {
         petMouseDragged(to: CGPoint(x: bodyCenterOnScreen.x + 50, y: bodyCenterOnScreen.y + 20))
         expect(!followingCursor && state == .dragging, "dragging stops following")
         petMouseUp(at: bodyCenterOnScreen)
+        testMouse = CGPoint(x: -10_000, y: -10_000)
+        step(1)
+        panelCooldownUntil = 0
+        testMouse = bodyCenterOnScreen
+        step(1.0 / 60.0)
+        expect(launchPanel.readyForSelection, "touching Pet opens a clickable ring on the next tick")
+        launchPanel.hide()
+        hoverDwell = 0
+        let r = hitRectOnScreen
+        testMouse = CGPoint(x: r.maxX + 10 * petScale, y: r.midY)
+        step(0.12)
+        expect(launchPanel.isShown, "passive hover halo opens the ring")
+        expect(window.ignoresMouseEvents, "hover halo leaves the underlying app clickable")
         testMouse = nil
 
         if failures.isEmpty { print("selftest: OK") } else { print("selftest: FAILED\n - " + failures.joined(separator: "\n - ")) }
