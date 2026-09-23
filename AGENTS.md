@@ -115,6 +115,8 @@ The cursor-follow pass added a persisted Follow cursor toggle to the right-click
 
 The cursor-gaze fix stores `pose.look.x` in world coordinates so a facing change cannot briefly invert the gaze. Follow mode uses separate enter/leave edge thresholds and walks in its actual travel direction; a stationary pointer no longer makes Pet repeatedly switch sides. The dog now tracks the pointer using only front-facing body/visible-face poses: raised-head frames for above, mirrored three-quarter face turns for left/right, and a straight-on face for below. It never shows its back just because the pointer moves above it. Self-test covers all sixteen compass sectors and edge-band stability, and the pose sheet renders eight pointer directions for visual review.
 
+The 2026-09-23 distribution refresh rebuilt `build/Pet.dmg` from the latest front-facing dog version. The disk image was mounted read-only and its app signature verified. It contains `Pet.app` and an Applications shortcut; the app includes its dog atlas and generated icon. The source sheet and labelled preview are development inputs, not runtime assets. App-ring icons are read from apps installed on the recipient's Mac, not bundled. The DMG checksum at this build is SHA-256 `4e64a7a255140eec2c75923e4c057e6722918354e2d790a8d86ee715214c5922`. The installed app was refreshed and a live snapshot confirmed the dog atlas loaded.
+
 ## Known gaps / ideas not built
 
 - Sprite rows with no trigger yet: gentle oops, laptop, celebration. Wire a pose signal in the controller, then map it in the view.

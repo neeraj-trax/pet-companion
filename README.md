@@ -7,6 +7,8 @@ and gets out of the way while you work.
 ## Install and open
 - Open `build/Pet.dmg`, drag Pet.app into Applications, then open it. On another Mac, macOS may
   require right-click → Open the first time because the shareable app is signed locally.
+- The DMG includes the complete app, dog artwork and icon. App shortcuts use icons from the
+  apps installed on each Mac; those third-party icons are not included in the download.
 - The dog-face icon appears in the menu bar; there is no Dock icon. Open Pet.app again to show
   Pet home. The menu-bar icon and right-clicking Pet both open the same short menu.
 - Pet home keeps the everyday choices together: color, size and app selection.
