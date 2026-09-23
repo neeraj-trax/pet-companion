@@ -82,17 +82,18 @@ enum SpriteAtlas {
         return frames[frames.count - 1].0
     }
 
-    /// Map cursor direction to the supplied views. The source sheet's gaze
-    /// cells are not in angular order, so this table follows the face direction.
+    /// Map screen-space cursor direction to the supplied views. A cursor above
+    /// the dog is behind it; a cursor below it is in front. The source cells
+    /// are not in angular order, so keep this table in clockwise screen order.
     /// `dx` positive = right, `dyUp` positive = up (native bottom-up coordinates).
     static func lookFrame(dx: CGFloat, dyUp: CGFloat) -> SpriteFrame {
         let angle = (atan2(dx, dyUp) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
         let sector = Int((angle / 22.5).rounded()) % 16
         let views: [SpriteFrame] = [
-            .init(row: 9, col: 0), .init(row: 9, col: 1), .init(row: 10, col: 6), .init(row: 9, col: 4),
-            .init(row: 9, col: 5), .init(row: 9, col: 6), .init(row: 9, col: 7), .init(row: 10, col: 1),
-            .init(row: 10, col: 2), .init(row: 10, col: 3), .init(row: 10, col: 4), .init(row: 10, col: 5),
-            .init(row: 10, col: 0), .init(row: 9, col: 3), .init(row: 9, col: 2), .init(row: 10, col: 7)
+            .init(row: 10, col: 2), .init(row: 10, col: 3), .init(row: 9, col: 7), .init(row: 9, col: 6),
+            .init(row: 9, col: 5), .init(row: 9, col: 4), .init(row: 9, col: 4), .init(row: 10, col: 7),
+            .init(row: 9, col: 0), .init(row: 9, col: 1), .init(row: 9, col: 2), .init(row: 9, col: 3),
+            .init(row: 10, col: 0), .init(row: 10, col: 4), .init(row: 10, col: 5), .init(row: 10, col: 1)
         ]
         return views[sector]
     }

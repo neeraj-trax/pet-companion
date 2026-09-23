@@ -29,7 +29,8 @@ and gets out of the way while you work.
   three-quarter size and strolls along the edge.
   Move your cursor near it and it grows back. It stays visible across full-screen app Spaces.
 - **Follow cursor**: choose it from Pet's right-click or menu-bar menu. Pet trails beside the
-  pointer at its normal size and pauses when you hover over it. Double-click Pet to stop following;
+  pointer at its normal size, looks toward it when still, and changes sides near screen edges
+  without repeatedly flipping. It pauses when you hover over it. Double-click Pet to stop following;
   you can also choose **Stop following** from the menu. Dragging Pet also turns follow mode off.
   The app ring stays closed until follow mode ends.
 - **Click** it to poke. When follow mode is off, **double-click** to jump to the app you were using before.

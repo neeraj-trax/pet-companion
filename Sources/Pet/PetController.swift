@@ -49,6 +49,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private var diveApps: Set<String> = []
     private var followingCursor = false
     private var followSpeed: CGFloat = 0
+    private var followWalkDirection: CGFloat = 1
     private var followSideX: CGFloat = -1
     private var followSideY: CGFloat = -1
     private var testMouse: CGPoint?
@@ -613,24 +614,18 @@ final class PetController: NSObject, NSMenuDelegate {
         guard !pressed, !petContains(mouse) else { followSpeed = 0; return }
         let destinationScreen = screen(containing: mouse)
         let bodyY = PetGeometry.bodyBottom + (PetGeometry.bodyCenter.y - PetGeometry.bodyBottom) * petScale
-        var best: (target: CGPoint, sideX: CGFloat, sideY: CGFloat, score: CGFloat)?
-        for sideX in [CGFloat(-1), CGFloat(1)] {
-            for sideY in [CGFloat(-1), CGFloat(1)] {
-                let desired = CGPoint(x: mouse.x + sideX * 125 * petScale - PetGeometry.bodyCenter.x,
-                                      y: mouse.y + sideY * 90 * petScale - bodyY)
-                let candidate = edgeTarget(for: .free, in: destinationScreen.visibleFrame, from: desired)
-                let center = CGPoint(x: candidate.x + PetGeometry.bodyCenter.x, y: candidate.y + bodyY)
-                let clearance = hypot(center.x - mouse.x, center.y - mouse.y)
-                let score = hypot(candidate.x - desired.x, candidate.y - desired.y)
-                    + max(0, 110 * petScale - clearance) * 4
-                    + (sideX == followSideX ? 0 : 50) + (sideY == followSideY ? 0 : 50)
-                if best == nil || score < best!.score { best = (candidate, sideX, sideY, score) }
-            }
-        }
-        guard let best else { return }
-        let changedSide = best.sideX != followSideX || best.sideY != followSideY
-        followSideX = best.sideX; followSideY = best.sideY
-        let target = best.target
+        let visible = destinationScreen.visibleFrame
+        // Enter and leave the edge zone at different distances. Choosing the
+        // nearest side every frame made Pet flip back and forth at the boundary.
+        let leftDistance = mouse.x - visible.minX
+        let bottomDistance = mouse.y - visible.minY
+        let sideX: CGFloat = leftDistance < (followSideX < 0 ? 165 : 260) * petScale ? 1 : -1
+        let sideY: CGFloat = bottomDistance < (followSideY < 0 ? 135 : 230) * petScale ? 1 : -1
+        let changedSide = sideX != followSideX || sideY != followSideY
+        followSideX = sideX; followSideY = sideY
+        let desired = CGPoint(x: mouse.x + sideX * 125 * petScale - PetGeometry.bodyCenter.x,
+                              y: mouse.y + sideY * 90 * petScale - bodyY)
+        let target = edgeTarget(for: .free, in: visible, from: desired)
         let start = origin
         let dx = target.x - start.x, dy = target.y - start.y
         let distance = hypot(dx, dy)
@@ -643,6 +638,7 @@ final class PetController: NSObject, NSMenuDelegate {
                               y: start.y + dy / distance * move))
         }
         followSpeed = changedSide ? 0 : hypot(origin.x - start.x, origin.y - start.y) / max(CGFloat(dt), 0.001)
+        if abs(origin.x - start.x) > 0.5 { followWalkDirection = origin.x > start.x ? 1 : -1 }
         pose.facing = mouse.x < bodyCenterOnScreen.x ? -1 : 1
     }
 
@@ -903,7 +899,7 @@ final class PetController: NSObject, NSMenuDelegate {
             lookTarget = .zero
         } else if state == .dragging {
             lookTarget = CGPoint(x: 0, y: 0.3)
-        } else if dist > 0.5 && mouseStillFor < 60 {
+        } else if dist > 0.5 && (followingCursor || mouseStillFor < 60) {
             let k = min(1, dist / 140) * (0.45 + 0.55 * max(0, 1 - dist / 1600))
             lookTarget = CGPoint(x: dx / dist * k, y: dy / dist * k)
             if state == .idle, edge == .bottom || edge == .top || edge == .free, abs(dx) > 60, !typing {
@@ -921,7 +917,7 @@ final class PetController: NSObject, NSMenuDelegate {
             }
             lookTarget = idleLook
         }
-        pose.look.x = approach(pose.look.x, lookTarget.x * pose.facing, rate: 9, dt: dtf)
+        pose.look.x = approach(pose.look.x, lookTarget.x, rate: 9, dt: dtf)
         pose.look.y = approach(pose.look.y, lookTarget.y, rate: 9, dt: dtf)
 
         // eyes
@@ -1043,7 +1039,7 @@ final class PetController: NSObject, NSMenuDelegate {
         pose.shadow = approach(pose.shadow, shadowTarget, rate: 6, dt: dtf)
         pose.submerged = 0
         pose.walk = (state == .strolling && cruiseSpeed > 0.5) ? cruiseDir
-            : (followingCursor && state != .poked && followSpeed > 25 ? pose.facing : 0)
+            : (followingCursor && state != .poked && followSpeed > 25 ? followWalkDirection : 0)
         pose.waterline = currentScreen.visibleFrame.minY - origin.y
         pose.ceiling = currentScreen.visibleFrame.maxY - origin.y
         pose.zzz = approach(pose.zzz, (napping && !yawning) ? 1 : 0, rate: 2.5, dt: dtf)
@@ -1349,6 +1345,7 @@ final class PetController: NSObject, NSMenuDelegate {
         followingCursor = enabled
         if !selfTesting { UserDefaults.standard.set(enabled, forKey: Keys.followCursor) }
         followSpeed = 0
+        followWalkDirection = 1
         followSideX = -1; followSideY = -1
         mini = 0
         edge = .free
@@ -1577,6 +1574,10 @@ final class PetController: NSObject, NSMenuDelegate {
         print("selftest: screen", f)
         let menuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
         expect(menuTitles == ["Open Pet home…", "Open Stash", "Follow cursor", "Quit Pet"], "essential menu and follow control")
+        expect(SpriteAtlas.lookFrame(dx: 0, dyUp: 1) == SpriteFrame(row: 10, col: 2), "cursor above shows dog's back")
+        expect(SpriteAtlas.lookFrame(dx: 1, dyUp: 0) == SpriteFrame(row: 9, col: 5), "cursor right shows dog's right side")
+        expect(SpriteAtlas.lookFrame(dx: 0, dyUp: -1) == SpriteFrame(row: 9, col: 0), "cursor below shows dog's face")
+        expect(SpriteAtlas.lookFrame(dx: -1, dyUp: 0) == SpriteFrame(row: 10, col: 0), "cursor left shows dog's left side")
 
         startStroll(.menu); step(3)
         expect(state == .strolling, "stroll should end small and walking")
@@ -1647,6 +1648,19 @@ final class PetController: NSObject, NSMenuDelegate {
         step(2)
         expect(f.insetBy(dx: -2, dy: -2).contains(bodyCenterOnScreen), "following stays on screen near edges")
         expect(!petContains(testMouse!), "following keeps the pointer clear near edges")
+        testMouse = CGPoint(x: f.minX + 200 * petScale, y: f.midY)
+        step(2)
+        expect(followSideX == 1, "follow keeps its side inside the edge band")
+        let stableFollowOrigin = origin
+        step(3)
+        expect(followSideX == 1 && hypot(origin.x - stableFollowOrigin.x, origin.y - stableFollowOrigin.y) < 2,
+               "stationary pointer does not repeat side switches")
+        testMouse = CGPoint(x: f.minX + 290 * petScale, y: f.midY + 250)
+        step(1)
+        expect(followSideX == -1, "follow leaves the edge band once")
+        testMouse = CGPoint(x: f.minX + 245 * petScale, y: f.midY + 250)
+        step(1)
+        expect(followSideX == -1, "follow does not immediately switch back")
         testMouse = bodyCenterOnScreen
         let pausedOrigin = origin
         step(0.3)

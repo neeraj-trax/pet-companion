@@ -156,7 +156,7 @@ final class PetView: NSView {
             frame = SpriteAtlas.frame(for: state, elapsed: TimeInterval(p.time - spriteStateStart), reducedMotion: reduced, loop: p.walk != 0)
             let lookMag = hypot(p.look.x, p.look.y)
             if state == .idle, lookMag > 0.5 {                                              // directional gaze
-                frame = SpriteAtlas.lookFrame(dx: p.look.x * p.facing, dyUp: p.look.y)
+                frame = SpriteAtlas.lookFrame(dx: p.look.x, dyUp: p.look.y)
             } else if state == .idle, p.eyeOpen < 0.4 || p.eyeStyle == .closed {
                 frame = SpriteFrame(row: 0, col: 1)                                        // blink while standing
             }
@@ -276,7 +276,7 @@ final class PetView: NSView {
     }
 
     private func drawFace(_ ctx: CGContext, _ p: PetPose) {
-        let lookX = p.look.x * 3, lookY = p.look.y * 2
+        let lookX = p.look.x * p.facing * 3, lookY = p.look.y * 2
         let drop = 6 * p.flop                     // napping: the face settles lower on the flattened body
         let eyeY = 19 + lookY - drop
 
@@ -585,8 +585,18 @@ enum IconRenderer {
         cells.append(("waiting", base, SpriteFrame(row: 6, col: 1)))
         cells.append(("laptop", base, SpriteFrame(row: 7, col: 1)))
         cells.append(("celebrate", base, SpriteFrame(row: 8, col: 2)))
-        cells.append(("look 45°", base, SpriteAtlas.lookFrame(dx: 1, dyUp: 1)))
-        cells.append(("look 270°", base, SpriteAtlas.lookFrame(dx: -1, dyUp: 0)))
+        for (name, dx, dy) in [
+            ("look above", CGFloat(0), CGFloat(1)),
+            ("look upper right", CGFloat(1), CGFloat(1)),
+            ("look right", CGFloat(1), CGFloat(0)),
+            ("look lower right", CGFloat(1), CGFloat(-1)),
+            ("look below", CGFloat(0), CGFloat(-1)),
+            ("look lower left", CGFloat(-1), CGFloat(-1)),
+            ("look left", CGFloat(-1), CGFloat(0)),
+            ("look upper left", CGFloat(-1), CGFloat(1))
+        ] {
+            cells.append((name, base, SpriteAtlas.lookFrame(dx: dx, dyUp: dy)))
+        }
         p = base; p.napping = true; p.eyeStyle = .closed; p.zzz = 1; p.shadow = 1
         cells.append(("nap", p, SpriteFrame(row: 5, col: 2)))
         p = base; p.walk = 1; p.squashX = 0.75; p.squashY = 0.75; cells.append(("stroll (compact)", p, SpriteFrame(row: 1, col: 3)))
