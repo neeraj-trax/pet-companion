@@ -138,7 +138,9 @@ final class PetView: NSView {
         if p.mouth == .surprised { return p.facing < 0 ? .runningLeft : .runningRight }     // being dragged
         if p.mouth == .chomp && p.flop < 0.5 { return .jumping }                             // poke / drop hover
         if p.mouth == .happy { return .waving }                                             // pill open, welcome
-        if p.thoughtAlpha > 0.5 { return .waiting }                                         // thinking bubble
+        // Routine thought signals keep the current face. The sprite path does
+        // not draw thought bubbles; the waiting row used to appear without context
+        // and repeat its sharp up-right look during idle.
         return .idle
     }
 
@@ -590,6 +592,7 @@ enum IconRenderer {
         cells.append(("jumping", base, SpriteFrame(row: 4, col: 2)))
         cells.append(("gentle oops", base, SpriteFrame(row: 5, col: 1)))
         cells.append(("waiting", base, SpriteFrame(row: 6, col: 1)))
+        p = base; p.thought = "hm"; p.thoughtAlpha = 1; cells.append(("idle thought signal", p, nil))
         cells.append(("laptop", base, SpriteFrame(row: 7, col: 1)))
         cells.append(("celebrate", base, SpriteFrame(row: 8, col: 2)))
         for (name, dx, dy) in [

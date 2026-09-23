@@ -66,8 +66,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private var wanderDeadline: TimeInterval = 0
     private var blinkIn: TimeInterval = 3
     private var blinkT: TimeInterval = -1
-    private var idleLook = CGPoint.zero
-    private var idleLookIn: TimeInterval = 2
+    private var trackingPointer = false
     private var thoughtIn: TimeInterval = 20
     private var thoughtUntil: TimeInterval = 0
     private var finFlickUntil: TimeInterval = 0
@@ -523,7 +522,7 @@ final class PetController: NSObject, NSMenuDelegate {
             if time < panelCooldownUntil { hoverDwell = 0 }
             let ready = overPet || (nearPet && hoverDwell >= 0.07)
             if !launchPanel.isShown, ready, time >= panelCooldownUntil, !pressed,
-               NSEvent.pressedMouseButtons == 0, !dropHovering, state != .dragging {
+               (selfTesting || NSEvent.pressedMouseButtons == 0), !dropHovering, state != .dragging {
                 switch state {
                 case .strolling, .shrinking:
                     grow(fast: true, openPanel: false)
@@ -900,7 +899,14 @@ final class PetController: NSObject, NSMenuDelegate {
             lookTarget = .zero
         } else if state == .dragging {
             lookTarget = CGPoint(x: 0, y: 0.3)
-        } else if dist > 0.5 && (followingCursor || mouseStillFor < 60) {
+        } else {
+            // A distant pointer must not trigger a random whole-body gaze pose.
+            // Use a wide enter/leave gap so tracking does not chatter
+            // when the pointer sits near the edge of Pet's attention area.
+            if followingCursor || dist < 350 { trackingPointer = true }
+            else if dist > 430 { trackingPointer = false }
+        }
+        if !napping && state != .dragging && trackingPointer && dist > 0.5 {
             let k = min(1, dist / 140) * (0.45 + 0.55 * max(0, 1 - dist / 1600))
             lookTarget = CGPoint(x: dx / dist * k, y: dy / dist * k)
             if state == .idle, edge == .bottom || edge == .top || edge == .free, abs(dx) > 60, !typing {
@@ -910,13 +916,6 @@ final class PetController: NSObject, NSMenuDelegate {
                     if oppositeSideFor > 0.8 { pose.facing = want; turnT = 0; oppositeSideFor = 0 }
                 } else { oppositeSideFor = 0 }
             }
-        } else {
-            idleLookIn -= dt
-            if idleLookIn <= 0 {
-                idleLookIn = Double.random(in: 2...6)
-                idleLook = Bool.random() ? .zero : CGPoint(x: CGFloat.random(in: -0.6...0.6), y: CGFloat.random(in: -0.3...0.4))
-            }
-            lookTarget = idleLook
         }
         pose.look.x = approach(pose.look.x, lookTarget.x, rate: 9, dt: dtf)
         pose.look.y = approach(pose.look.y, lookTarget.y, rate: 9, dt: dtf)
@@ -1587,6 +1586,21 @@ final class PetController: NSObject, NSMenuDelegate {
                 "all pointer directions keep the face visible")
         }
 
+        testMouse = CGPoint(x: -10_000, y: -10_000)
+        lastMouse = testMouse!
+        mouseStillFor = 70
+        pose.look = CGPoint(x: 0.7, y: 0.5)
+        trackingPointer = false
+        step(0.3)
+        expect(hypot(pose.look.x, pose.look.y) < 0.05, "distant still pointer returns to neutral gaze")
+        let nearby = bodyCenterOnScreen
+        testMouse = CGPoint(x: nearby.x + 120, y: nearby.y + 140)
+        step(0.3)
+        expect(trackingPointer && pose.look.x > 0.4 && pose.look.y > 0.4, "nearby pointer gets directional gaze")
+        testMouse = nil
+        trackingPointer = false
+        mouseStillFor = 0
+
         startStroll(.menu); step(3)
         expect(state == .strolling, "stroll should end small and walking")
         expect(abs(mini - 1) < 0.05, "small while strolling")
@@ -1642,7 +1656,13 @@ final class PetController: NSObject, NSMenuDelegate {
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0))); enterIdle(); step(0.5)
         shhHour(); step(4); expect(isMini, "shh strolls small"); shhHour(); step(3); expect(!isMini, "shh off grows back")
 
+        // Isolate the hover assertion from random state left by the long run
+        // and from the owner's actual mouse buttons while the self-test runs.
+        launchPanel.hide()
+        pressed = false
+        dropHovering = false
         startStroll(.menu); step(0.3)
+        panelCooldownUntil = 0
         testMouse = bodyCenterOnScreen
         step(1.0 / 60.0)
         expect(launchPanel.readyForSelection && state == .growing, "compact Pet opens a clickable ring before growing finishes")

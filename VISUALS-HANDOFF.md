@@ -19,12 +19,12 @@ Current character: the blue floppy-eared dog. This replaces the private robot at
 | 4 | Wave | Happy/pill-open pose; frame 2 is the app icon |
 | 5 | Jump | Poke/drop-hover pose |
 | 6 | Gentle oops | Not triggered by the controller yet; frame 3 is used for curled-up nap |
-| 7 | Waiting | `pose.thoughtAlpha > 0.5` |
+| 7 | Waiting | Unused; routine thought signals keep the neutral idle pose |
 | 8 | Laptop | Not triggered yet |
 | 9 | Celebration | Not triggered yet |
 | 10–11 | Sixteen supplied rotation views | Only the forward-facing cells V1–V3 are used for cursor tracking; back and full-profile views remain in the atlas but are not selected by pointer direction |
 
-All non-walking triggered rows play three fast cycles then return to slow idle. Walk loops while `pose.walk` is nonzero. The sprite does not mirror; left and right walking have separate rows. Nap draws the actual curled-up frame without rotating the dog. No robot face-screen overlays or sound bars are drawn.
+All non-walking triggered rows play three fast cycles then return to slow idle. Walk loops while `pose.walk` is nonzero. The sprite does not mirror; left and right walking have separate rows. Nap draws the actual curled-up frame without rotating the dog. Routine idle thought signals no longer select the repeated waiting row; the sprite path does not currently draw a thought bubble. No robot face-screen overlays or sound bars are drawn.
 
 `pose.look.x` is a world-space direction. `SpriteAtlas.lookView` selects a front-facing pose from waiting F3–F4 (pointer above) or gaze V1–V3 (beside/below), mirroring the left/right turns as needed. Only the mirrored vector fallback converts the x direction to body-local coordinates. The pose renderer includes eight labelled pointer directions and uses the same selection and mirroring path as the live dog.
 
