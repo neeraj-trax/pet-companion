@@ -28,9 +28,13 @@ and gets out of the way while you work.
 - **Out of the way**: when you type for a while or stay in one app for 15 minutes, it shrinks to
   three-quarter size and strolls along the edge.
   Move your cursor near it and it grows back. It stays visible across full-screen app Spaces.
-- **Click** it to poke. **Double-click** to jump to the app you were using before.
+- **Follow cursor**: choose it from Pet's right-click or menu-bar menu. Pet trails beside the
+  pointer at its normal size and pauses when you hover over it. Double-click Pet to stop following;
+  you can also choose **Stop following** from the menu. Dragging Pet also turns follow mode off.
+  The app ring stays closed until follow mode ends.
+- **Click** it to poke. When follow mode is off, **double-click** to jump to the app you were using before.
 - **Expressions**: its ears, eyes, face and body poses show how it feels. There is no face screen.
-- Right-click menu: Open Pet home, Open Stash, Quit Pet.
+- Right-click menu: Open Pet home, Open Stash, Follow cursor/Stop following, Quit Pet.
 
 ## Permissions
 Automation may be requested for music-app play/pause. Pet does not request microphone access.

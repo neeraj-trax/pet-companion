@@ -16,7 +16,7 @@ enum Mood: String, CaseIterable {
     }
 }
 
-/// Owns the pet window, runs the animation loop, and decides what the shark feels like doing.
+/// Owns the pet window, runs the animation loop, and decides what Pet feels like doing.
 final class PetController: NSObject, NSMenuDelegate {
     enum State { case idle, wandering, napping, poked, dragging, landing, shrinking, strolling, growing }
     enum DiveReason { case menu, drag, idle, typing, autopilot, shh, app }
@@ -47,6 +47,11 @@ final class PetController: NSObject, NSMenuDelegate {
     private(set) var petScale: CGFloat = 1
     private var shhUntil: TimeInterval = 0
     private var diveApps: Set<String> = []
+    private var followingCursor = false
+    private var followSpeed: CGFloat = 0
+    private var followSideX: CGFloat = -1
+    private var followSideY: CGFloat = -1
+    private var testMouse: CGPoint?
 
     // idle brain
     private var nextDecisionIn: TimeInterval = 8
@@ -148,6 +153,7 @@ final class PetController: NSObject, NSMenuDelegate {
         static let x = "pet.origin.x", y = "pet.origin.y", edge = "pet.edge", hugEdges = "pet.hugEdges", coat = "pet.coat"
         static let sharing = "pet.hideFromSharing", mood = "pet.mood", quiet = "pet.quietHours", underwater = "pet.underwater"
         static let diveApps = "pet.diveApps", firstRun = "pet.firstRunDone", pillHint = "pet.pillHintShown", size = "pet.displayScale"
+        static let followCursor = "pet.followCursor"
     }
     private var saidBrb = false
     private var selfTesting = false
@@ -171,6 +177,7 @@ final class PetController: NSObject, NSMenuDelegate {
         hideFromSharing = d.bool(forKey: Keys.sharing)
         mood = Mood(rawValue: d.string(forKey: Keys.mood) ?? "") ?? .normal
         quietHours = d.bool(forKey: Keys.quiet)
+        followingCursor = d.bool(forKey: Keys.followCursor)
         let savedScale = CGFloat((d.object(forKey: Keys.size) as? NSNumber)?.doubleValue ?? 1)
         petScale = (0.85...1.15).contains(savedScale) ? savedScale : 1
         pose.displayScale = petScale
@@ -242,6 +249,7 @@ final class PetController: NSObject, NSMenuDelegate {
     /// Faster frames only when something is actually moving; slow ticks while the shark just breathes.
     private func desiredInterval(mouse: CGPoint) -> TimeInterval {
         if screenAsleep { return 2.0 }
+        if followingCursor { return followSpeed > 20 ? 1.0 / 60.0 : 1.0 / 30.0 }
         switch state {
         case .landing, .dragging, .wandering, .poked, .shrinking, .growing: return 1.0 / 60.0
         case .strolling: return cruiseSpeed > 1 ? 1.0 / 30.0 : 1.0 / 15.0
@@ -389,6 +397,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let d = UserDefaults.standard
         if let e = ScreenEdge(rawValue: d.string(forKey: Keys.edge) ?? "") { edge = e }
         if !hugEdges { edge = .free }
+        if followingCursor { edge = .free; peek = 1; mini = 0 }
         var o = CGPoint(x: d.double(forKey: Keys.x), y: d.double(forKey: Keys.y))
         let saved = d.object(forKey: Keys.x) != nil
         let center = CGPoint(x: o.x + PetGeometry.bodyCenter.x, y: o.y + PetGeometry.bodyCenter.y)
@@ -412,6 +421,7 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func screensChanged() {
+        if followingCursor { return } // the next pointer tick chooses the new display
         guard state != .dragging, !isMini else { return }
         let target = edgeTarget(for: edge, in: currentScreen.visibleFrame, from: origin)
         if hypot(target.x - origin.x, target.y - origin.y) < 2 { return }
@@ -457,7 +467,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
         // Keep headless verification deterministic: the real pointer must not hover the test pet
         // and interrupt a stroll by asking it to grow.
-        let mouse = selfTesting ? CGPoint(x: -10_000, y: -10_000) : NSEvent.mouseLocation
+        let mouse = selfTesting ? (testMouse ?? CGPoint(x: -10_000, y: -10_000)) : NSEvent.mouseLocation
         let moved = hypot(mouse.x - lastMouse.x, mouse.y - lastMouse.y)
         cursorSpeed = approach(cursorSpeed, moved / CGFloat(max(dt, 0.001)), rate: 12, dt: CGFloat(dt))
         if moved > 0.5 {
@@ -499,6 +509,12 @@ final class PetController: NSObject, NSMenuDelegate {
             if ignore != lastIgnoresMouse { window.ignoresMouseEvents = ignore; lastIgnoresMouse = ignore }
         }
 
+        if followingCursor {
+            hoverDwell = 0
+            if launchPanel.isShown { launchPanel.hide() }
+            return
+        }
+
         if overPet || overPanel {
             hoverGrace = 0
             let resting = cursorSpeed < 60 && NSEvent.pressedMouseButtons == 0
@@ -531,6 +547,11 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     private func updateState(dt: TimeInterval, mouse: CGPoint) {
+        if followingCursor {
+            if state == .poked && stateTime > 0.5 { enterIdle() }
+            updateFollow(dt: dt, mouse: mouse)
+            return
+        }
         switch state {
         case .idle:
             if afkSleepEnabled && mouseStillFor > afkSleepAfter && keyIdle > afkSleepAfter && !launchPanel.isShown && !pressed && !dropHovering && !selfTesting {
@@ -584,6 +605,45 @@ final class PetController: NSObject, NSMenuDelegate {
                 savePosition()
             }
         }
+    }
+
+    /// Keep Pet near the pointer without covering it. Hovering Pet pauses the chase so
+    /// a double-click or drag remains possible.
+    private func updateFollow(dt: TimeInterval, mouse: CGPoint) {
+        guard !pressed, !petContains(mouse) else { followSpeed = 0; return }
+        let destinationScreen = screen(containing: mouse)
+        let bodyY = PetGeometry.bodyBottom + (PetGeometry.bodyCenter.y - PetGeometry.bodyBottom) * petScale
+        var best: (target: CGPoint, sideX: CGFloat, sideY: CGFloat, score: CGFloat)?
+        for sideX in [CGFloat(-1), CGFloat(1)] {
+            for sideY in [CGFloat(-1), CGFloat(1)] {
+                let desired = CGPoint(x: mouse.x + sideX * 125 * petScale - PetGeometry.bodyCenter.x,
+                                      y: mouse.y + sideY * 90 * petScale - bodyY)
+                let candidate = edgeTarget(for: .free, in: destinationScreen.visibleFrame, from: desired)
+                let center = CGPoint(x: candidate.x + PetGeometry.bodyCenter.x, y: candidate.y + bodyY)
+                let clearance = hypot(center.x - mouse.x, center.y - mouse.y)
+                let score = hypot(candidate.x - desired.x, candidate.y - desired.y)
+                    + max(0, 110 * petScale - clearance) * 4
+                    + (sideX == followSideX ? 0 : 50) + (sideY == followSideY ? 0 : 50)
+                if best == nil || score < best!.score { best = (candidate, sideX, sideY, score) }
+            }
+        }
+        guard let best else { return }
+        let changedSide = best.sideX != followSideX || best.sideY != followSideY
+        followSideX = best.sideX; followSideY = best.sideY
+        let target = best.target
+        let start = origin
+        let dx = target.x - start.x, dy = target.y - start.y
+        let distance = hypot(dx, dy)
+        if changedSide || destinationScreen.frame != currentScreen.frame {
+            setOrigin(target)
+        } else if distance > 0.5 {
+            let eased = distance * (1 - exp(-6 * CGFloat(dt)))
+            let move = min(eased, 700 * CGFloat(dt))
+            setOrigin(CGPoint(x: start.x + dx / distance * move,
+                              y: start.y + dy / distance * move))
+        }
+        followSpeed = changedSide ? 0 : hypot(origin.x - start.x, origin.y - start.y) / max(CGFloat(dt), 0.001)
+        pose.facing = mouse.x < bodyCenterOnScreen.x ? -1 : 1
     }
 
     /// On a side edge the shark hides behind the screen edge and peeks out now and then.
@@ -799,7 +859,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let happy = state == .poked || launchPanel.isShown || dropHovering || time < welcomeUntil
 
         // little passing thoughts while idle (never while typing)
-        if state == .idle && !launchPanel.isShown && !typing && !isQuietTime {
+        if state == .idle && !followingCursor && !launchPanel.isShown && !typing && !isQuietTime {
             thoughtIn -= dt
             if thoughtIn <= 0 {
                 thoughtIn = Double.random(in: thoughtInterval)
@@ -818,7 +878,7 @@ final class PetController: NSObject, NSMenuDelegate {
         if playing {
             pose.discAngle += dtf * 3.2
             musicNoteIn -= dt
-            if musicNoteIn <= 0 && state == .idle && !typing { musicNoteIn = Double.random(in: 40...90); think("♪", for: 1.6) }
+            if musicNoteIn <= 0 && state == .idle && !followingCursor && !typing { musicNoteIn = Double.random(in: 40...90); think("♪", for: 1.6) }
         }
 
         // blinking
@@ -982,7 +1042,8 @@ final class PetController: NSObject, NSMenuDelegate {
         }
         pose.shadow = approach(pose.shadow, shadowTarget, rate: 6, dt: dtf)
         pose.submerged = 0
-        pose.walk = (state == .strolling && cruiseSpeed > 0.5) ? cruiseDir : 0
+        pose.walk = (state == .strolling && cruiseSpeed > 0.5) ? cruiseDir
+            : (followingCursor && state != .poked && followSpeed > 25 ? pose.facing : 0)
         pose.waterline = currentScreen.visibleFrame.minY - origin.y
         pose.ceiling = currentScreen.visibleFrame.maxY - origin.y
         pose.zzz = approach(pose.zzz, (napping && !yawning) ? 1 : 0, rate: 2.5, dt: dtf)
@@ -1141,9 +1202,9 @@ final class PetController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func spawnBubbles(_ count: Int) {}   // no water effects for the robot
+    private func spawnBubbles(_ count: Int) {}   // no water effects for the dog
 
-    private func spawnDroplets(_ count: Int) {}   // no water effects for the robot
+    private func spawnDroplets(_ count: Int) {}   // no water effects for the dog
 
     private func launch(_ url: URL) {
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
@@ -1222,6 +1283,7 @@ final class PetController: NSObject, NSMenuDelegate {
         guard pressed else { return }
         if state != .dragging {
             if hypot(p.x - pressStart.x, p.y - pressStart.y) < 4 { return }
+            if followingCursor { setFollowingCursor(false, saveOnStop: false) }
             if state == .napping { lastNapEnded = time }
             mini = 0
             state = .dragging
@@ -1241,7 +1303,10 @@ final class PetController: NSObject, NSMenuDelegate {
         else {
             let isDouble = time - lastClickAt < 0.35
             lastClickAt = time
-            if isDouble { switchToPreviousApp() } else { poke() }
+            if isDouble {
+                if followingCursor { setFollowingCursor(false) }
+                else { switchToPreviousApp() }
+            } else { poke() }
         }
     }
 
@@ -1271,9 +1336,33 @@ final class PetController: NSObject, NSMenuDelegate {
     private func populate(_ menu: NSMenu) {
         menu.addItem(withTitle: "Open Pet home…", action: #selector(openHome), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Open Stash", action: #selector(openStash), keyEquivalent: "").target = self
+        let follow = menu.addItem(withTitle: followingCursor ? "Stop following" : "Follow cursor",
+                                  action: #selector(toggleFollowingCursor), keyEquivalent: "")
+        follow.target = self
+        follow.state = followingCursor ? .on : .off
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Pet", action: #selector(quit), keyEquivalent: "q").target = self
     }
+
+    private func setFollowingCursor(_ enabled: Bool, saveOnStop: Bool = true) {
+        guard enabled != followingCursor else { return }
+        followingCursor = enabled
+        if !selfTesting { UserDefaults.standard.set(enabled, forKey: Keys.followCursor) }
+        followSpeed = 0
+        followSideX = -1; followSideY = -1
+        mini = 0
+        edge = .free
+        peek = 1; peekTarget = 1
+        hoverDwell = 0
+        panelCooldownUntil = time + 0.5
+        lastClickAt = -10
+        if launchPanel.isShown { launchPanel.hide() }
+        if state == .napping { lastNapEnded = time }
+        enterIdle()
+        if !enabled && saveOnStop && !selfTesting { savePosition() }
+    }
+
+    @objc private func toggleFollowingCursor() { setFollowingCursor(!followingCursor) }
 
     @objc private func openHome() { showHome() }
     @objc private func openStash() {
@@ -1446,7 +1535,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("pet-debug", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var lines: [String] = []
-        lines.append("state=\(state) edge=\(edge) mini=\(mini) peek=\(peek) origin=\(origin) screenVisible=\(currentScreen.visibleFrame)")
+        lines.append("state=\(state) edge=\(edge) mini=\(mini) peek=\(peek) followingCursor=\(followingCursor) followSpeed=\(followSpeed) origin=\(origin) screenVisible=\(currentScreen.visibleFrame)")
         lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace) stashVisible=\(stashPanel.isShown)")
         lines.append("atlas=\(SpriteAtlas.image != nil) coat=\(pose.coat) walk=\(pose.walk) squash=\(pose.squashX),\(pose.squashY) flop=\(pose.flop)")
         if let mask = window.contentView?.layer?.mask as? CAShapeLayer { lines.append("mask=\(mask.path?.boundingBox ?? .zero)") } else { lines.append("mask=none") }
@@ -1480,13 +1569,14 @@ final class PetController: NSObject, NSMenuDelegate {
         }
         let f = currentScreen.visibleFrame
         selfTesting = true
+        followingCursor = false; followSpeed = 0; followSideX = -1; followSideY = -1; testMouse = nil
         hugEdges = true; edge = .bottom; mini = 0
         pendingThoughts.removeAll()
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0)))
         enterIdle()
         print("selftest: screen", f)
         let menuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
-        expect(menuTitles == ["Open Pet home…", "Open Stash", "Quit Pet"], "essential menu only")
+        expect(menuTitles == ["Open Pet home…", "Open Stash", "Follow cursor", "Quit Pet"], "essential menu and follow control")
 
         startStroll(.menu); step(3)
         expect(state == .strolling, "stroll should end small and walking")
@@ -1542,6 +1632,37 @@ final class PetController: NSObject, NSMenuDelegate {
         edge = .bottom; mini = 0
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0))); enterIdle(); step(0.5)
         shhHour(); step(4); expect(isMini, "shh strolls small"); shhHour(); step(3); expect(!isMini, "shh off grows back")
+
+        setFollowingCursor(true)
+        testMouse = CGPoint(x: f.midX, y: f.midY)
+        step(2)
+        let firstFollowPosition = bodyCenterOnScreen
+        expect(followingCursor && edge == .free && mini == 0, "follow mode stays full-size and free")
+        expect(hypot(firstFollowPosition.x - (f.midX - 125 * petScale),
+                     firstFollowPosition.y - (f.midY - 90 * petScale)) < 30, "Pet trails the cursor")
+        testMouse = CGPoint(x: f.midX + 240, y: f.midY + 80)
+        step(1)
+        expect(bodyCenterOnScreen.x > firstFollowPosition.x + 100, "Pet follows a moved cursor")
+        testMouse = CGPoint(x: f.minX + 12, y: f.minY + 12)
+        step(2)
+        expect(f.insetBy(dx: -2, dy: -2).contains(bodyCenterOnScreen), "following stays on screen near edges")
+        expect(!petContains(testMouse!), "following keeps the pointer clear near edges")
+        testMouse = bodyCenterOnScreen
+        let pausedOrigin = origin
+        step(0.3)
+        expect(hypot(origin.x - pausedOrigin.x, origin.y - pausedOrigin.y) < 1, "hovering pauses follow for clicks")
+        let followMenuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
+        expect(followMenuTitles.contains("Stop following"), "follow menu shows stop action")
+        petMouseDown(at: bodyCenterOnScreen); petMouseUp(at: bodyCenterOnScreen)
+        step(0.08)
+        petMouseDown(at: bodyCenterOnScreen); petMouseUp(at: bodyCenterOnScreen)
+        expect(!followingCursor && edge == .free, "double-click stops following in place")
+        setFollowingCursor(true)
+        petMouseDown(at: bodyCenterOnScreen)
+        petMouseDragged(to: CGPoint(x: bodyCenterOnScreen.x + 50, y: bodyCenterOnScreen.y + 20))
+        expect(!followingCursor && state == .dragging, "dragging stops following")
+        petMouseUp(at: bodyCenterOnScreen)
+        testMouse = nil
 
         if failures.isEmpty { print("selftest: OK") } else { print("selftest: FAILED\n - " + failures.joined(separator: "\n - ")) }
         return failures.isEmpty
