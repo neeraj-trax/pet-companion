@@ -148,6 +148,7 @@ final class PetView: NSView {
         if state != spriteState { spriteState = state; spriteStateStart = p.time }
         let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         var frame: SpriteFrame
+        var mirrorGaze = false
         if let o = spriteFrameOverride {
             frame = o
         } else if napping {
@@ -156,7 +157,9 @@ final class PetView: NSView {
             frame = SpriteAtlas.frame(for: state, elapsed: TimeInterval(p.time - spriteStateStart), reducedMotion: reduced, loop: p.walk != 0)
             let lookMag = hypot(p.look.x, p.look.y)
             if state == .idle, lookMag > 0.5 {                                              // directional gaze
-                frame = SpriteAtlas.lookFrame(dx: p.look.x, dyUp: p.look.y)
+                let look = SpriteAtlas.lookView(dx: p.look.x, dyUp: p.look.y)
+                frame = look.frame
+                mirrorGaze = look.mirrored
             } else if state == .idle, p.eyeOpen < 0.4 || p.eyeStyle == .closed {
                 frame = SpriteFrame(row: 0, col: 1)                                        // blink while standing
             }
@@ -172,6 +175,10 @@ final class PetView: NSView {
             ctx.rotate(by: p.tilt * 0.6)
         }
         ctx.translateBy(x: -feet.x, y: -feet.y)
+        if mirrorGaze {
+            ctx.translateBy(x: 2 * feet.x, y: 0)
+            ctx.scaleBy(x: -1, y: 1)
+        }
         ctx.interpolationQuality = .high
         let o = PetGeometry.spriteCellOrigin
         ctx.draw(cell, in: CGRect(x: o.x, y: o.y, width: SpriteAtlas.cell.width * s, height: SpriteAtlas.cell.height * s))
@@ -595,7 +602,8 @@ enum IconRenderer {
             ("look left", CGFloat(-1), CGFloat(0)),
             ("look upper left", CGFloat(-1), CGFloat(1))
         ] {
-            cells.append((name, base, SpriteAtlas.lookFrame(dx: dx, dyUp: dy)))
+            p = base; p.look = CGPoint(x: dx, y: dy)
+            cells.append((name, p, nil))
         }
         p = base; p.napping = true; p.eyeStyle = .closed; p.zzz = 1; p.shadow = 1
         cells.append(("nap", p, SpriteFrame(row: 5, col: 2)))

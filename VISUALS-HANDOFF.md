@@ -22,11 +22,11 @@ Current character: the blue floppy-eared dog. This replaces the private robot at
 | 7 | Waiting | `pose.thoughtAlpha > 0.5` |
 | 8 | Laptop | Not triggered yet |
 | 9 | Celebration | Not triggered yet |
-| 10–11 | Sixteen real gaze views | Idle look direction through `SpriteAtlas.lookFrame`; screen-up points toward the dog's back and screen-down toward its face. The source cells are not ordered by angle, so the function maps sectors to views |
+| 10–11 | Sixteen supplied rotation views | Only the forward-facing cells V1–V3 are used for cursor tracking; back and full-profile views remain in the atlas but are not selected by pointer direction |
 
 All non-walking triggered rows play three fast cycles then return to slow idle. Walk loops while `pose.walk` is nonzero. The sprite does not mirror; left and right walking have separate rows. Nap draws the actual curled-up frame without rotating the dog. No robot face-screen overlays or sound bars are drawn.
 
-`pose.look.x` is a world-space direction. The sprite renderer passes it directly to `lookFrame`; only the mirrored vector fallback converts it to body-local coordinates. The pose renderer includes eight labelled pointer directions to check the gaze at normal size.
+`pose.look.x` is a world-space direction. `SpriteAtlas.lookView` selects a front-facing pose from waiting F3–F4 (pointer above) or gaze V1–V3 (beside/below), mirroring the left/right turns as needed. Only the mirrored vector fallback converts the x direction to body-local coordinates. The pose renderer includes eight labelled pointer directions and uses the same selection and mirroring path as the live dog.
 
 ## Geometry and colour
 

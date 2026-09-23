@@ -1574,10 +1574,17 @@ final class PetController: NSObject, NSMenuDelegate {
         print("selftest: screen", f)
         let menuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
         expect(menuTitles == ["Open Pet home…", "Open Stash", "Follow cursor", "Quit Pet"], "essential menu and follow control")
-        expect(SpriteAtlas.lookFrame(dx: 0, dyUp: 1) == SpriteFrame(row: 10, col: 2), "cursor above shows dog's back")
-        expect(SpriteAtlas.lookFrame(dx: 1, dyUp: 0) == SpriteFrame(row: 9, col: 5), "cursor right shows dog's right side")
-        expect(SpriteAtlas.lookFrame(dx: 0, dyUp: -1) == SpriteFrame(row: 9, col: 0), "cursor below shows dog's face")
-        expect(SpriteAtlas.lookFrame(dx: -1, dyUp: 0) == SpriteFrame(row: 10, col: 0), "cursor left shows dog's left side")
+        expect(SpriteAtlas.lookView(dx: 0, dyUp: 1).frame == SpriteFrame(row: 6, col: 2), "cursor above shows raised face")
+        expect(SpriteAtlas.lookView(dx: 1, dyUp: 0) == SpriteLook(frame: SpriteFrame(row: 9, col: 2), mirrored: true), "cursor right turns face right")
+        expect(SpriteAtlas.lookView(dx: 0, dyUp: -1).frame == SpriteFrame(row: 9, col: 0), "cursor below shows front face")
+        expect(SpriteAtlas.lookView(dx: -1, dyUp: 0) == SpriteLook(frame: SpriteFrame(row: 9, col: 2)), "cursor left turns face left")
+        for i in 0..<16 {
+            let a = CGFloat(i) * .pi / 8
+            let look = SpriteAtlas.lookView(dx: sin(a), dyUp: cos(a))
+            expect((look.frame.row == 6 && (2...3).contains(look.frame.col))
+                || (look.frame.row == 9 && (0...2).contains(look.frame.col)),
+                "all pointer directions keep the face visible")
+        }
 
         startStroll(.menu); step(3)
         expect(state == .strolling, "stroll should end small and walking")
