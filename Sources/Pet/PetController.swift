@@ -144,6 +144,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     // apps
     private var recentApps: [URL] = []
+    private var appRingMode: AppRingMode = .pinned
     private var frontSince: TimeInterval = 0
     private var frontBundle: String?
     private var switchTimes: [TimeInterval] = []
@@ -154,12 +155,15 @@ final class PetController: NSObject, NSMenuDelegate {
         static let sharing = "pet.hideFromSharing", mood = "pet.mood", quiet = "pet.quietHours", underwater = "pet.underwater"
         static let diveApps = "pet.diveApps", firstRun = "pet.firstRunDone", pillHint = "pet.pillHintShown", size = "pet.displayScale"
         static let followCursor = "pet.followCursor"
+        static let appRingMode = "pet.appRingMode", recentApps = "pet.recentApps"
     }
     private var saidBrb = false
     private var selfTesting = false
     private var pendingThoughts: [(TimeInterval, String, TimeInterval)] = []
 
     var currentCoat: Coat { pose.coat }
+    var currentAppRingMode: AppRingMode { appRingMode }
+    var ringAppURLs: [URL] { launchPanel.displayedAppURLs }
     var currentMood: Mood { mood }
     var quietHoursEnabled: Bool { quietHours }
     var hidesFromSharing: Bool { hideFromSharing }
@@ -178,6 +182,17 @@ final class PetController: NSObject, NSMenuDelegate {
         mood = Mood(rawValue: d.string(forKey: Keys.mood) ?? "") ?? .normal
         quietHours = d.bool(forKey: Keys.quiet)
         followingCursor = d.bool(forKey: Keys.followCursor)
+        appRingMode = AppRingMode(rawValue: d.string(forKey: Keys.appRingMode) ?? "") ?? .pinned
+        var seenApps = Set<String>()
+        recentApps = Array((d.stringArray(forKey: Keys.recentApps) ?? [])
+            .map { URL(fileURLWithPath: $0).standardizedFileURL }
+            .filter { FileManager.default.fileExists(atPath: $0.path)
+                && $0.path != Bundle.main.bundleURL.path
+                && seenApps.insert($0.path).inserted }
+            .prefix(RingPanel.recentLimit + 1))
+        launchPanel.appMode = appRingMode
+        launchPanel.recents = switchBackApps
+        launchPanel.reload()
         let savedScale = CGFloat((d.object(forKey: Keys.size) as? NSNumber)?.doubleValue ?? 1)
         petScale = (0.85...1.15).contains(savedScale) ? savedScale : 1
         pose.displayScale = petScale
@@ -223,7 +238,8 @@ final class PetController: NSObject, NSMenuDelegate {
                                                             name: Notification.Name("in.vellabs.pet.snapshot"), object: nil)
         if let front = NSWorkspace.shared.frontmostApplication {
             frontBundle = front.bundleIdentifier
-            if let url = front.bundleURL { recentApps = [url] }
+            if front.bundleIdentifier != Bundle.main.bundleIdentifier,
+               front.activationPolicy == .regular, let url = front.bundleURL { recordRecentApp(url) }
         }
         enterIdle()
         let d = UserDefaults.standard
@@ -303,9 +319,20 @@ final class PetController: NSObject, NSMenuDelegate {
             switchTimes.removeAll { time - $0 > 60 }
         }
         guard let url = app.bundleURL, app.activationPolicy == .regular else { return }
-        recentApps.removeAll { $0.path == url.path }
-        recentApps.insert(url, at: 0)
-        if recentApps.count > 4 { recentApps.removeLast() }
+        recordRecentApp(url)
+    }
+
+    private func recordRecentApp(_ url: URL) {
+        let app = url.standardizedFileURL
+        recentApps.removeAll { $0.path == app.path }
+        recentApps.insert(app, at: 0)
+        if recentApps.count > RingPanel.recentLimit + 1 { recentApps.removeLast() }
+        if !selfTesting { UserDefaults.standard.set(recentApps.map(\.path), forKey: Keys.recentApps) }
+        if appRingMode == .recent {
+            launchPanel.recents = switchBackApps
+            launchPanel.reload()
+        }
+        if appRingMode == .recent, homeWindow?.window?.isVisible == true { homeWindow?.refreshApps() }
     }
 
     private var switchBackApps: [URL] {
@@ -529,10 +556,6 @@ final class PetController: NSObject, NSMenuDelegate {
                 default:
                     if state == .napping { wake() }
                     if state == .wandering { enterIdle() }
-                }
-                if launchPanel.config.maxRecents > 0 {
-                    launchPanel.recents = switchBackApps
-                    launchPanel.reload()
                 }
                 launchPanel.show(near: petRect, edge: edge, screen: f, centreX: bodyCenterOnScreen.x)
                 if !UserDefaults.standard.bool(forKey: Keys.pillHint) {
@@ -1453,6 +1476,17 @@ final class PetController: NSObject, NSMenuDelegate {
 
     func showStash() { openStash() }
 
+    func setAppRingMode(_ mode: AppRingMode) {
+        guard mode != appRingMode else { return }
+        appRingMode = mode
+        if !selfTesting { UserDefaults.standard.set(mode.rawValue, forKey: Keys.appRingMode) }
+        launchPanel.hide()
+        launchPanel.appMode = mode
+        launchPanel.recents = switchBackApps
+        launchPanel.reload()
+        homeWindow?.refreshApps()
+    }
+
     func setCoat(_ coat: Coat) {
         guard coat != pose.coat else { return }
         pose.coat = coat
@@ -1574,6 +1608,26 @@ final class PetController: NSObject, NSMenuDelegate {
         print("selftest: screen", f)
         let menuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
         expect(menuTitles == ["Open Pet home…", "Open Stash", "Follow cursor", "Quit Pet"], "essential menu and follow control")
+        let savedRingMode = appRingMode
+        let savedRecentApps = recentApps
+        recentApps.removeAll()
+        setAppRingMode(.recent)
+        for index in 0..<8 { recordRecentApp(URL(fileURLWithPath: "/Applications/PetRecentTest\(index).app")) }
+        expect(recentApps.count == 7 && recentApps.first?.lastPathComponent == "PetRecentTest7.app",
+               "recent history keeps the latest seven so six previous apps are available")
+        recordRecentApp(URL(fileURLWithPath: "/Applications/PetRecentTest4.app"))
+        expect(recentApps.count == 7 && recentApps.first?.lastPathComponent == "PetRecentTest4.app",
+               "revisiting an app moves it to the front without duplicating it")
+        launchPanel.recents = Array(recentApps.dropFirst()) // pretend the newest app is foreground
+        launchPanel.reload()
+        expect(ringAppURLs == Array(recentApps.dropFirst()) && ringAppURLs.count == 6,
+               "recent ring shows exactly six previous apps, without pinned extras")
+        setAppRingMode(.pinned)
+        expect(ringAppURLs == store.apps, "pinned mode restores the chosen app list")
+        recentApps = savedRecentApps
+        setAppRingMode(savedRingMode)
+        launchPanel.recents = switchBackApps
+        launchPanel.reload()
         expect(SpriteAtlas.lookView(dx: 0, dyUp: 1).frame == SpriteFrame(row: 6, col: 2), "cursor above shows raised face")
         expect(SpriteAtlas.lookView(dx: 1, dyUp: 0) == SpriteLook(frame: SpriteFrame(row: 9, col: 2), mirrored: true), "cursor right turns face right")
         expect(SpriteAtlas.lookView(dx: 0, dyUp: -1).frame == SpriteFrame(row: 9, col: 0), "cursor below shows front face")

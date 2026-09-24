@@ -19,6 +19,7 @@ and gets out of the way while you work.
 - **Move your cursor** onto Pet or just beside it → the app ring opens immediately. The chip under the
   cursor grows like the Dock. Click to launch. The name pops out next to the chip.
 - **Manage apps**: open Pet home → "Edit Apps…" to add, remove or reorder (or right-click a chip).
+- **Recent apps mode**: in Pet home → Apps, choose **Recent 6**. The ring then shows the six apps you used most recently before the current app, updating as you switch apps. Choose **Pinned** to return to your saved app list. Pet remembers the mode and recent apps after relaunch.
 - **Drop** files, images, links or text on Pet → saved as copies in Stash. Open the floating shelf
   from the ring or menu; it stays over full-screen apps without opening Finder. Drag an item into
   another app, or click to select and use **Preview** (double-click also previews).

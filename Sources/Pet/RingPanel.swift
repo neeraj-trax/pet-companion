@@ -1,5 +1,7 @@
 import AppKit
 
+enum AppRingMode: String { case pinned, recent }
+
 /// One chip in the ring: an app, Stash, or "+".
 struct RingItem {
     enum Kind { case app(URL, pinned: Bool), stash, add, music(MusicWatcher.Track) }
@@ -32,7 +34,6 @@ struct RingConfig {
     var bandOuter: CGFloat = 60
     var captionGap: CGFloat = 8
     var margin: CGFloat = 116             // window padding for magnified chips + captions
-    var maxRecents = 0                    // recently-used apps shown before the pinned ones
     var appearSpeed: CGFloat = 4.2        // 1/seconds for the pop-in
     var stagger: CGFloat = 0.45           // how much of the pop-in is stagger (0 = all at once)
     var burst: CGFloat = 0.55             // chips fly in from this fraction of the radius
@@ -49,7 +50,12 @@ final class RingPanel: NSPanel {
     var onRemove: ((URL) -> Void)?
     var onPin: ((URL) -> Void)?
     var onPlayPause: (() -> Void)?
+    static let recentLimit = 6
+    var appMode: AppRingMode = .pinned
     var recents: [URL] = []
+    var displayedAppURLs: [URL] {
+        appMode == .recent ? Array(recents.prefix(Self.recentLimit)) : ShortcutStore.shared.apps
+    }
     var nowPlaying: MusicWatcher.Track?
     private(set) var isShown = false
     var readyForSelection: Bool {
@@ -89,16 +95,13 @@ final class RingPanel: NSPanel {
     // MARK: items
 
     func reload() {
-        let pinned = ShortcutStore.shared.apps
         var items: [RingItem] = []
         if let t = nowPlaying { items.append(RingItem(kind: .music(t))) }
-        let recentItems = recents.filter({ r in !pinned.contains { $0.path == r.path } }).prefix(config.maxRecents)
-        for r in recentItems {
-            items.append(RingItem(kind: .app(r, pinned: false)))
+        for url in displayedAppURLs {
+            items.append(RingItem(kind: .app(url, pinned: appMode == .pinned)))
         }
-        items.append(contentsOf: pinned.map { RingItem(kind: .app($0, pinned: true)) })
         items.append(RingItem(kind: .stash))
-        ring.setItems(items, recentCount: recentItems.count)
+        ring.setItems(items)
         if isShown { ring.needsDisplay = true }
     }
 
@@ -305,7 +308,6 @@ final class RingView: NSView {
     private var captionAlpha: CGFloat = 0
 
     private var items: [RingItem] = []
-    private var recentCount = 0
     private var scales: [CGFloat] = []        // current magnification per chip
     private var velocities: [CGFloat] = []
     private var targets: [CGFloat] = []
@@ -323,9 +325,8 @@ final class RingView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
-    func setItems(_ items: [RingItem], recentCount: Int) {
+    func setItems(_ items: [RingItem]) {
         self.items = items
-        self.recentCount = max(0, recentCount)
         scales = Array(repeating: 1, count: items.count)
         velocities = Array(repeating: 0, count: items.count)
         targets = scales
@@ -488,7 +489,7 @@ final class RingView: NSView {
             ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.10 + 0.25 * lit).cgColor)
             ctx.setLineWidth(1)
             ctx.strokeEllipse(in: chipRect.insetBy(dx: 0.5, dy: 0.5))
-            if i < recentCount {   // subtle tick for "recently used"
+            if case .app(_, let pinned) = items[i].kind, !pinned { // subtle tick for recently used
                 ctx.setFillColor(NSColor(red: 0.55, green: 0.72, blue: 0.92, alpha: 0.9).cgColor)
                 ctx.fillEllipse(in: CGRect(x: chipRect.maxX - 8, y: chipRect.maxY - 8, width: 5, height: 5))
             }

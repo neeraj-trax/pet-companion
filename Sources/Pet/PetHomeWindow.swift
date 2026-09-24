@@ -7,6 +7,8 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
     private let sizeSlider = NSSlider(value: 1, minValue: 0.85, maxValue: 1.15, target: nil, action: nil)
     private let sizeValue = NSTextField(labelWithString: "100%")
     private let appIcons = AppIconStrip()
+    private let appModeControl = NSSegmentedControl(labels: ["Pinned", "Recent 6"], trackingMode: .selectOne, target: nil, action: nil)
+    private let editAppsButton = NSButton(title: "Edit Apps…", target: nil, action: nil)
     private var skinButtons: [SkinButton] = []
     private var previousApp: NSRunningApplication?
 
@@ -169,9 +171,9 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         stack.alignment = .width
         stack.spacing = 10
         stack.distribution = .fill
-        color.heightAnchor.constraint(equalToConstant: 148).isActive = true
-        size.heightAnchor.constraint(equalToConstant: 100).isActive = true
-        apps.heightAnchor.constraint(equalToConstant: 110).isActive = true
+        color.heightAnchor.constraint(equalToConstant: 146).isActive = true
+        size.heightAnchor.constraint(equalToConstant: 98).isActive = true
+        apps.heightAnchor.constraint(equalToConstant: 122).isActive = true
         return stack
     }
 
@@ -209,19 +211,28 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
     private func makeAppsSection() -> NSView {
         let card = CardView()
         let title = sectionTitle("Apps")
-        let edit = NSButton(title: "Edit Apps…", target: self, action: #selector(editApps))
-        edit.bezelStyle = .rounded
-        edit.controlSize = .small
-        for item in [title, edit, appIcons] { item.translatesAutoresizingMaskIntoConstraints = false; card.addSubview(item) }
+        editAppsButton.target = self
+        editAppsButton.action = #selector(editApps)
+        editAppsButton.bezelStyle = .rounded
+        editAppsButton.controlSize = .small
+        appModeControl.target = self
+        appModeControl.action = #selector(appModeChanged)
+        appModeControl.controlSize = .small
+        appModeControl.segmentStyle = .rounded
+        appModeControl.setAccessibilityLabel("Apps shown in Pet's ring")
+        for item in [title, editAppsButton, appModeControl, appIcons] { item.translatesAutoresizingMaskIntoConstraints = false; card.addSubview(item) }
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
             title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
-            edit.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            edit.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+            editAppsButton.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+            editAppsButton.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+            appModeControl.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+            appModeControl.trailingAnchor.constraint(equalTo: editAppsButton.trailingAnchor),
+            appModeControl.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 7),
             appIcons.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
             appIcons.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            appIcons.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
-            appIcons.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -10),
+            appIcons.topAnchor.constraint(equalTo: appModeControl.bottomAnchor, constant: 5),
+            appIcons.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -8),
         ])
         return card
     }
@@ -240,7 +251,16 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
         for (index, button) in skinButtons.enumerated() {
             button.setSelected(Coat.allCases[index] == controller.currentCoat)
         }
-        appIcons.reload(urls: controller.store.apps)
+        refreshApps()
+    }
+
+    func refreshApps() {
+        guard let controller = petController else { return }
+        let recent = controller.currentAppRingMode == .recent
+        appModeControl.selectedSegment = recent ? 1 : 0
+        editAppsButton.isHidden = recent
+        appIcons.reload(urls: controller.ringAppURLs,
+                        emptyMessage: recent ? "Switch between apps to fill this list" : "No apps yet")
     }
 
     @objc private func skinPicked(_ sender: SkinButton) {
@@ -258,6 +278,11 @@ final class PetHomeWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func editApps() {
         petController?.showManageApps { [weak self] in self?.refresh() }
+    }
+
+    @objc private func appModeChanged() {
+        petController?.setAppRingMode(appModeControl.selectedSegment == 1 ? .recent : .pinned)
+        refreshApps()
     }
 }
 
@@ -358,7 +383,7 @@ private final class AppIconStrip: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func reload(urls: [URL]) {
+    func reload(urls: [URL], emptyMessage: String = "No apps yet") {
         for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
         for url in urls.prefix(7) {
             let icon = NSWorkspace.shared.icon(forFile: url.path)
@@ -370,7 +395,7 @@ private final class AppIconStrip: NSView {
             stack.addArrangedSubview(image)
         }
         if urls.isEmpty {
-            let label = NSTextField(labelWithString: "No apps yet")
+            let label = NSTextField(labelWithString: emptyMessage)
             label.textColor = .secondaryLabelColor
             label.font = .systemFont(ofSize: 12)
             stack.addArrangedSubview(label)
