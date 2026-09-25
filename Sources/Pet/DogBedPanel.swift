@@ -3,7 +3,7 @@ import AppKit
 /// A small cushion in the screen corner. The empty bed is click-through;
 /// one click on the sleeping dog brings him back out.
 final class DogBedPanel: NSPanel {
-    static let size = CGSize(width: 174, height: 118)
+    static let size = CGSize(width: 148, height: 100)
     private let bed = DogBedView(frame: CGRect(origin: .zero, size: size))
     var onWake: (() -> Void)?
 
@@ -49,10 +49,11 @@ final class DogBedPanel: NSPanel {
     }
 
     func acceptsDrop(at pointer: CGPoint, dogRect: CGRect) -> Bool {
-        let target = frame.insetBy(dx: -14, dy: -12)
+        // Keep the drop gesture forgiving even though the visible cushion is smaller.
+        let target = frame.insetBy(dx: -20, dy: -16)
         if target.contains(pointer) { return true }
         let overlap = target.intersection(dogRect)
-        return !overlap.isNull && overlap.width > 45 && overlap.height > 35
+        return !overlap.isNull && overlap.width > 40 && overlap.height > 30
     }
 
     func tick(time: TimeInterval) {
@@ -76,16 +77,19 @@ final class DogBedView: NSView {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         ctx.saveGState()
         ctx.interpolationQuality = .high
+        // Draw in the original art coordinates, then fit the complete bed into
+        // the smaller screen-corner panel without changing the dog's proportions.
+        ctx.scaleBy(x: bounds.width / 174, y: bounds.height / 118)
         let ink = NSColor(red: 0.13, green: 0.17, blue: 0.21, alpha: 1)
         let bolster = dropHighlighted
-            ? NSColor(red: 0.95, green: 0.72, blue: 0.61, alpha: 1)
-            : NSColor(red: 0.89, green: 0.67, blue: 0.59, alpha: 1)
-        let inside = NSColor(red: 0.98, green: 0.87, blue: 0.81, alpha: 1)
+            ? NSColor(red: 0.77, green: 0.86, blue: 0.69, alpha: 1)
+            : NSColor(red: 0.65, green: 0.75, blue: 0.61, alpha: 1)
+        let inside = NSColor(red: 0.99, green: 0.94, blue: 0.84, alpha: 1)
 
         ctx.setFillColor(NSColor.black.withAlphaComponent(0.11).cgColor)
         ctx.fillEllipse(in: CGRect(x: 13, y: 3, width: 148, height: 13))
 
-        // One plump outline, with a softer inset where the dog curls up.
+        // A low sage base with a cream hollow for the sleeping dog.
         let cushion = CGMutablePath()
         cushion.move(to: CGPoint(x: 10, y: 32))
         cushion.addCurve(to: CGPoint(x: 39, y: 70), control1: CGPoint(x: 9, y: 51), control2: CGPoint(x: 21, y: 68))
@@ -118,7 +122,7 @@ final class DogBedView: NSView {
             ctx.restoreGState()
         }
 
-        // The front pillow edge overlaps the sprite a little so it feels nested.
+        // A low front lip and two curling side bolsters make a little nest.
         let lip = CGMutablePath()
         lip.move(to: CGPoint(x: 17, y: 32))
         lip.addCurve(to: CGPoint(x: 157, y: 32), control1: CGPoint(x: 45, y: 16), control2: CGPoint(x: 129, y: 16))
@@ -127,19 +131,41 @@ final class DogBedView: NSView {
         lip.addCurve(to: CGPoint(x: 17, y: 32), control1: CGPoint(x: 25, y: 12), control2: CGPoint(x: 14, y: 19))
         lip.closeSubpath()
         ctx.addPath(lip)
-        ctx.setFillColor(NSColor(red: 0.83, green: 0.57, blue: 0.51, alpha: 1).cgColor)
+        ctx.setFillColor(bolster.cgColor)
         ctx.fillPath()
         ctx.addPath(lip); ctx.setStrokeColor(ink.cgColor); ctx.setLineWidth(2.2); ctx.strokePath()
 
+        let leftArm = CGMutablePath()
+        leftArm.move(to: CGPoint(x: 10, y: 29))
+        leftArm.addCurve(to: CGPoint(x: 27, y: 63), control1: CGPoint(x: 8, y: 47), control2: CGPoint(x: 15, y: 61))
+        leftArm.addCurve(to: CGPoint(x: 47, y: 52), control1: CGPoint(x: 36, y: 67), control2: CGPoint(x: 44, y: 62))
+        leftArm.addCurve(to: CGPoint(x: 56, y: 31), control1: CGPoint(x: 49, y: 42), control2: CGPoint(x: 53, y: 35))
+        leftArm.addCurve(to: CGPoint(x: 37, y: 14), control1: CGPoint(x: 56, y: 19), control2: CGPoint(x: 49, y: 15))
+        leftArm.addCurve(to: CGPoint(x: 10, y: 29), control1: CGPoint(x: 19, y: 11), control2: CGPoint(x: 10, y: 17))
+        leftArm.closeSubpath()
+        ctx.addPath(leftArm); ctx.setFillColor(bolster.cgColor); ctx.fillPath()
+        ctx.addPath(leftArm); ctx.setStrokeColor(ink.cgColor); ctx.setLineWidth(2.4); ctx.strokePath()
+
+        let rightArm = CGMutablePath()
+        rightArm.move(to: CGPoint(x: 164, y: 29))
+        rightArm.addCurve(to: CGPoint(x: 147, y: 63), control1: CGPoint(x: 166, y: 47), control2: CGPoint(x: 159, y: 61))
+        rightArm.addCurve(to: CGPoint(x: 127, y: 52), control1: CGPoint(x: 138, y: 67), control2: CGPoint(x: 130, y: 62))
+        rightArm.addCurve(to: CGPoint(x: 118, y: 31), control1: CGPoint(x: 125, y: 42), control2: CGPoint(x: 121, y: 35))
+        rightArm.addCurve(to: CGPoint(x: 137, y: 14), control1: CGPoint(x: 118, y: 19), control2: CGPoint(x: 125, y: 15))
+        rightArm.addCurve(to: CGPoint(x: 164, y: 29), control1: CGPoint(x: 155, y: 11), control2: CGPoint(x: 164, y: 17))
+        rightArm.closeSubpath()
+        ctx.addPath(rightArm); ctx.setFillColor(bolster.cgColor); ctx.fillPath()
+        ctx.addPath(rightArm); ctx.setStrokeColor(ink.cgColor); ctx.setLineWidth(2.4); ctx.strokePath()
+
         if occupied {
-            for (index, mark) in ["z", "Z", "Z"].enumerated() {
+            for (index, mark) in ["z", "Z"].enumerated() {
                 let i = CGFloat(index)
                 let rise = 2 * sin(sleepPhase * 1.3 - i * 0.6)
                 let attrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.systemFont(ofSize: 10 + i * 3, weight: .semibold),
                     .foregroundColor: NSColor(red: 0.43, green: 0.42, blue: 0.61, alpha: 0.66 + i * 0.11)
                 ]
-                (mark as NSString).draw(at: CGPoint(x: 119 + i * 14, y: 65 + i * 18 + rise),
+                (mark as NSString).draw(at: CGPoint(x: 128 + i * 13, y: 70 + i * 17 + rise),
                                         withAttributes: attrs)
             }
         }
