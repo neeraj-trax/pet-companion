@@ -36,9 +36,14 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-home"), i + 1 < Comman
     HomePreview.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
     exit(0)
 }
-if let i = CommandLine.arguments.firstIndex(of: "--render-house"), i + 1 < CommandLine.arguments.count {
+if let i = CommandLine.arguments.firstIndex(of: "--render-bed"), i + 1 < CommandLine.arguments.count {
     _ = NSApplication.shared
-    DogHousePreview.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+    DogBedPreview.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+    exit(0)
+}
+if let i = CommandLine.arguments.firstIndex(of: "--render-bed-empty"), i + 1 < CommandLine.arguments.count {
+    _ = NSApplication.shared
+    DogBedPreview.render(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]), occupied: false)
     exit(0)
 }
 

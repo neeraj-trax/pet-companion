@@ -35,6 +35,8 @@ To create a shareable disk image, run `./build-dmg.sh`. It writes `build/Pet.dmg
 .build/release/Pet --render-stash build/stash.png      # floating draggable file shelf
 PET_STASH_RENDER_SELECTED=1 .build/release/Pet --render-stash build/stash-selected.png # selected controls
 .build/release/Pet --render-home build/home.png        # compact Pet home window
+.build/release/Pet --render-bed build/bed.png          # occupied cushion in the screen corner
+.build/release/Pet --render-bed-empty build/bed-empty.png # empty cushion drop target
 .build/release/Pet --snapshot                         # ask the RUNNING app to dump what it draws + its state
 ```
 

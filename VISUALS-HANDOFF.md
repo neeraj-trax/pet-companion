@@ -32,6 +32,7 @@ All non-walking triggered rows play three fast cycles then return to slow idle. 
 
 - `PetGeometry.spriteScale = 0.82` makes the idle dog about 108 pt tall. The atlas cell is centred on `bodyCenter.x` and anchored so its sole at top-down pixel 177 sits on `bodyBottom = 28`.
 - The dog fits x 11…180 within each cell. `hitRect` and `hitPath` cover its ears, tail and paws; nap has a lower, wider hit path. `earTop` is 167 pt for edge fitting.
+- The corner dog bed draws the closed-eye pose from row 6, column 2 (one-based) inside a small native cushion. The original on-screen nap uses row 6, column 3; the bed uses the more legible closed-eye frame.
 - `Coat.spriteTone` changes only blue fur pixels. Black eyes, nose, mouth and outline, plus the grey laptop, retain their original colours. `.hojiro` is the original blue and the other saved skin keys remain valid.
 
 Verify with `swift build -c release`, `.build/release/Pet --selftest`, `./build-app.sh`, `--render-poses`, `--render-icon`, and `--render-ring-live`. Inspect the pose sheet at one-third scale to see the character around 100–120 px tall. Check the labelled atlas separately for paw completeness and limb count.
