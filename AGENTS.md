@@ -4,7 +4,7 @@ Read this first. It tells you what the app is, how the code is laid out, what ea
 
 ## What it is
 
-A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. A click selects an item, double-click or Preview opens Quick Look, and Remove moves only the Stash copy to Trash with Undo until the shelf closes. When you are busy Pet shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip. Automation permission may be requested for play/pause.
+A macOS desktop companion (Shimeji-style). A small animated character lives on top of every window, click-through except on its body. Rest the cursor on it and a **ring of app chips** fans out around it (Dock-style magnification); click a chip to launch the app. Drop files, text, links or images on it and they are saved to **Stash**. The Stash chip opens a floating shelf in the current Space, including over full-screen apps, and its files can be dragged straight into another app without opening Finder. A click selects an item, double-click or Preview opens Quick Look, and Remove moves only the Stash copy to Trash with Undo until the shelf closes. Drag Pet into the small bottom-right dog house to put him to sleep indefinitely; click the occupied house to wake him. When you are busy Pet shrinks to three-quarter size and strolls along the screen edge (side edges: tucks in and peeks). Music playing in Spotify/Apple Music shows up as a player chip. Automation permission may be requested for play/pause.
 
 Opening Pet.app again, or choosing **Open Pet home…** from either menu, opens a compact native window with a quiet live preview and only Color, Size (85–115%), and Apps. Apps offers Pinned and Recent 6 modes; Edit Apps appears for Pinned. Changes apply immediately and save automatically. Stash remains available from the menu and ring. Previously saved edge/privacy/login, mood, quiet-hours, and app-specific compact preferences still apply but are not shown in Pet home.
 
@@ -38,6 +38,7 @@ Headless checks (there is no screenshot access for agents; use these):
 .build/release/Pet --render-stash build/stash.png      # floating draggable file shelf
 PET_STASH_RENDER_SELECTED=1 .build/release/Pet --render-stash build/stash-selected.png # selection controls
 .build/release/Pet --render-home build/home.png        # simplified Pet home window
+.build/release/Pet --render-house build/house.png      # sleeping dog in the house
 .build/release/Pet --render-icon build/icon.png        # app icon
 ```
 
@@ -52,6 +53,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 | `main.swift` | entry point, debug CLI flags | `--selftest`, `--render-*` |
 | `AppDelegate.swift` | menu-bar dog icon, reopen → Pet home | tiny |
 | `PetWindow.swift` | the transparent always-on-top non-activating panel | `ignoresMouseEvents` is toggled per tick by the controller |
+| `DogHousePanel.swift` | small bottom-right house, drop highlight, sleeping dog head and Zz, click to wake | native drawing uses the closed-eye dog atlas frame and selected coat |
 | `PetController.swift` | **the brain**: state machine, hover/drag/poke, edge snapping, hiding, typing detection, menu, self-test | ~1700 lines; sections are marked with `// MARK:` |
 | `PetPose.swift` | `PetPose` = everything the drawing gets per frame; `PetGeometry` constants; `Coat` skins | the contract between controller and view |
 | `PetView.swift` | draws the character from `PetPose`; drag-and-drop target; pose renderers | visuals agent's file |
@@ -126,6 +128,10 @@ The gaze stability pass removes random idle gaze poses that could abruptly show 
 The Recent 6 app-ring pass added a persisted Pinned / Recent 6 control in Pet home. App activations maintain a deduplicated seven-entry history so the tray can display six previous apps while excluding the current one. The ring keeps Stash and music available in both modes. Self-test covers the six-item cap, repeated app activation, and returning to pinned apps. Release build, repeated self-test, home/ring/corner/pose renders, installed signature, refreshed DMG verification, and a fresh running-app snapshot (`atlas=true`) passed. The DMG SHA-256 is `beaa2be3c98ca94ce385b210b9bdbcb313c00b0aeb843b06d4b058284da79677`. macOS returned a transient -600 error on the first `open`; `open -a /Applications/Pet.app` succeeded and the running snapshot is fresh.
 
 The full-screen tray fix gives the ring panel macOS's `canJoinAllApplications` collection behavior, so it can appear over another app's full-screen Space when Pet is hovered there. Screen wake now reorders an already-open ring alongside Pet, and `--snapshot` reports `ringVisible` and `ringOnActiveSpace` for diagnosis. The release build, self-test, pose/ring/corner renders, installation, code signature, and running snapshot passed. A direct full-screen hover check remains for the owner because UI automation timed out while opening a test app.
+
+The dog-house pass adds a 150×142 pt nonactivating house at the bottom-right of the dog's current display, above the Dock. It follows the dog's display while dragged, highlights on a valid drop, and is click-through when empty. Dropping Pet there hides the standing window and persists `pet.sleepingInHouse`; the house shows the selected-color dog's closed-eye head and gently floating “Zz.” The normal state loop cannot wake him. Clicking the occupied house alone clears the saved sleep state and places Pet beside the house. The house joins other apps' full-screen Spaces and follows the screenshot privacy setting. `--render-house` produces its review image; self-test covers drop targeting, highlight, indefinite sleep, and waking. The release build, app bundle, verified DMG, installed signature, pose/ring/house renders, and running snapshot passed. The running snapshot showed `houseSleeping=true`, `houseVisible=true`, and `windowVisible=false`, then remained asleep on a later check. House self-test transitions do not write the saved sleep flag or position.
+
+Three house design studies are in `Assets/dog-house-concepts.png`: Cozy cottage, Pebble house, and A-frame nook. `Tools/render-house-concepts.swift` regenerates the sheet from the committed dog atlas. They are review options; the live house still uses the original drawing in `DogHousePanel.swift` until the owner chooses one.
 
 ## Known gaps / ideas not built
 

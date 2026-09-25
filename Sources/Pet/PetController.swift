@@ -25,6 +25,7 @@ final class PetController: NSObject, NSMenuDelegate {
     let view = PetView(frame: CGRect(origin: .zero, size: PetGeometry.viewSize))
     let launchPanel = RingPanel()
     let stashPanel = StashPanel()
+    let housePanel = DogHousePanel()
     let store = ShortcutStore.shared
     let music = MusicWatcher()
     private var homeWindow: PetHomeWindowController?
@@ -38,6 +39,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private var timer: Timer?
     private var timerInterval: TimeInterval = 0
     private var screenAsleep = false
+    private var sleepingInHouse = false
 
     private(set) var edge: ScreenEdge = .bottom
     private(set) var hugEdges = true
@@ -155,6 +157,7 @@ final class PetController: NSObject, NSMenuDelegate {
         static let sharing = "pet.hideFromSharing", mood = "pet.mood", quiet = "pet.quietHours", underwater = "pet.underwater"
         static let diveApps = "pet.diveApps", firstRun = "pet.firstRunDone", pillHint = "pet.pillHintShown", size = "pet.displayScale"
         static let followCursor = "pet.followCursor"
+        static let sleepingInHouse = "pet.sleepingInHouse"
         static let appRingMode = "pet.appRingMode", recentApps = "pet.recentApps"
     }
     private var saidBrb = false
@@ -178,6 +181,10 @@ final class PetController: NSObject, NSMenuDelegate {
         let d = UserDefaults.standard
         hugEdges = d.object(forKey: Keys.hugEdges) as? Bool ?? true
         pose.coat = Coat(rawValue: d.string(forKey: Keys.coat) ?? "") ?? .sand
+        sleepingInHouse = d.bool(forKey: Keys.sleepingInHouse)
+        housePanel.coat = pose.coat
+        housePanel.occupied = sleepingInHouse
+        housePanel.onWake = { [weak self] in self?.wakeFromHouse() }
         hideFromSharing = d.bool(forKey: Keys.sharing)
         mood = Mood(rawValue: d.string(forKey: Keys.mood) ?? "") ?? .normal
         quietHours = d.bool(forKey: Keys.quiet)
@@ -224,7 +231,10 @@ final class PetController: NSObject, NSMenuDelegate {
 
     func start() {
         placeInitially()
-        window.orderFrontRegardless()
+        housePanel.place(in: currentScreen.visibleFrame)
+        housePanel.orderFrontRegardless()
+        if sleepingInHouse { window.orderOut(nil) }
+        else { window.orderFrontRegardless() }
         restartTimer(interval: 1.0 / 30.0)
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
@@ -287,7 +297,8 @@ final class PetController: NSObject, NSMenuDelegate {
     @objc private func screensWoke() {
         screenAsleep = false
         lastTick = CACurrentMediaTime()
-        window.orderFrontRegardless()
+        housePanel.orderFrontRegardless()
+        if !sleepingInHouse { window.orderFrontRegardless() }
         if launchPanel.isShown { launchPanel.orderFrontRegardless() }
         if stashPanel.isShown { stashPanel.orderFrontRegardless() }
     }
@@ -296,7 +307,8 @@ final class PetController: NSObject, NSMenuDelegate {
     /// the pet remains present everywhere, including full-screen app Spaces.
     @objc private func activeSpaceChanged() {
         guard !screenAsleep else { return }
-        window.orderFrontRegardless()
+        housePanel.orderFrontRegardless()
+        if !sleepingInHouse { window.orderFrontRegardless() }
         if launchPanel.isShown { launchPanel.orderFrontRegardless() }
         if stashPanel.isShown { stashPanel.orderFrontRegardless() }
         lastTick = CACurrentMediaTime()
@@ -306,6 +318,7 @@ final class PetController: NSObject, NSMenuDelegate {
         window.sharingType = hideFromSharing ? .none : .readOnly
         launchPanel.sharingType = hideFromSharing ? .none : .readOnly
         stashPanel.sharingType = hideFromSharing ? .none : .readOnly
+        housePanel.sharingType = hideFromSharing ? .none : .readOnly
     }
 
     // MARK: - Apps you use
@@ -452,6 +465,8 @@ final class PetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func screensChanged() {
+        housePanel.place(in: currentScreen.visibleFrame)
+        if sleepingInHouse { return }
         if followingCursor { return } // the next pointer tick chooses the new display
         guard state != .dragging, !isMini else { return }
         let target = edgeTarget(for: edge, in: currentScreen.visibleFrame, from: origin)
@@ -495,6 +510,11 @@ final class PetController: NSObject, NSMenuDelegate {
         lastTick = now
         time += wallDt                      // clocks (naps, cruises, shh) follow the wall clock
         stateTime += dt
+        if sleepingInHouse {
+            housePanel.tick(time: time)
+            restartTimer(interval: 1.0 / 8.0)
+            return
+        }
 
         // Keep headless verification deterministic: the real pointer must not hover the test pet
         // and interrupt a stroll by asking it to grow.
@@ -1211,6 +1231,40 @@ final class PetController: NSObject, NSMenuDelegate {
         stateTime = 0
     }
 
+    private func enterHouse() {
+        launchPanel.hide()
+        housePanel.dropHighlighted = false
+        housePanel.place(in: currentScreen.visibleFrame)
+        housePanel.occupied = true
+        housePanel.orderFrontRegardless()
+        sleepingInHouse = true
+        state = .napping
+        stateTime = 0
+        afkNap = false
+        mini = 0
+        if !selfTesting { UserDefaults.standard.set(true, forKey: Keys.sleepingInHouse) }
+        if !selfTesting { savePosition() }
+        window.orderOut(nil)
+    }
+
+    private func wakeFromHouse() {
+        guard sleepingInHouse else { return }
+        sleepingInHouse = false
+        housePanel.occupied = false
+        if !selfTesting { UserDefaults.standard.set(false, forKey: Keys.sleepingInHouse) }
+        let f = currentScreen.visibleFrame
+        edge = hugEdges ? .bottom : .free
+        peek = 1; peekTarget = 1; mini = 0
+        pose.napping = false; pose.flop = 0; pose.eyeOpen = 1; pose.eyeStyle = .open
+        let besideHouse = CGPoint(x: housePanel.frame.minX - 64 - PetGeometry.bodyCenter.x,
+                                  y: f.minY - PetGeometry.bodyBottom + 6)
+        setOrigin(edgeTarget(for: edge, in: f, from: besideHouse))
+        enterIdle()
+        panelCooldownUntil = time + 0.7
+        window.orderFrontRegardless()
+        if !selfTesting { savePosition() }
+    }
+
     private func spawnParticles(_ glyph: String, count: Int) {
         let c = PetGeometry.bodyCenter
         for _ in 0..<count {
@@ -1313,12 +1367,17 @@ final class PetController: NSObject, NSMenuDelegate {
             panelCooldownUntil = time + 0.6
         }
         setOrigin(CGPoint(x: pressOrigin.x + (p.x - pressStart.x), y: pressOrigin.y + (p.y - pressStart.y)))
+        housePanel.place(in: currentScreen.visibleFrame)
+        housePanel.dropHighlighted = housePanel.acceptsDrop(at: p, dogRect: hitRectOnScreen)
     }
 
     func petMouseUp(at p: CGPoint) {
         guard pressed else { return }
         pressed = false
-        if state == .dragging { release() }
+        if state == .dragging {
+            if housePanel.acceptsDrop(at: p, dogRect: hitRectOnScreen) { enterHouse() }
+            else { housePanel.dropHighlighted = false; release() }
+        }
         else if state == .growing || state == .shrinking { return }
         else {
             let isDouble = time - lastClickAt < 0.35
@@ -1491,6 +1550,7 @@ final class PetController: NSObject, NSMenuDelegate {
     func setCoat(_ coat: Coat) {
         guard coat != pose.coat else { return }
         pose.coat = coat
+        housePanel.coat = coat
         UserDefaults.standard.set(coat.rawValue, forKey: Keys.coat)
         pulse(amount: 0.12, duration: 0.35)
         spawnBubbles(2)
@@ -1568,7 +1628,7 @@ final class PetController: NSObject, NSMenuDelegate {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var lines: [String] = []
         lines.append("state=\(state) edge=\(edge) mini=\(mini) peek=\(peek) followingCursor=\(followingCursor) followSpeed=\(followSpeed) origin=\(origin) screenVisible=\(currentScreen.visibleFrame)")
-        lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace) ringVisible=\(launchPanel.isShown) ringOnActiveSpace=\(launchPanel.isOnActiveSpace) stashVisible=\(stashPanel.isShown)")
+        lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace) ringVisible=\(launchPanel.isShown) ringOnActiveSpace=\(launchPanel.isOnActiveSpace) stashVisible=\(stashPanel.isShown) houseSleeping=\(sleepingInHouse) houseVisible=\(housePanel.isVisible)")
         lines.append("atlas=\(SpriteAtlas.image != nil) coat=\(pose.coat) walk=\(pose.walk) squash=\(pose.squashX),\(pose.squashY) flop=\(pose.flop)")
         if let mask = window.contentView?.layer?.mask as? CAShapeLayer { lines.append("mask=\(mask.path?.boundingBox ?? .zero)") } else { lines.append("mask=none") }
         try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("state.txt"), atomically: true, encoding: .utf8)
@@ -1601,6 +1661,11 @@ final class PetController: NSObject, NSMenuDelegate {
         }
         let f = currentScreen.visibleFrame
         selfTesting = true
+        if sleepingInHouse {
+            sleepingInHouse = false
+            housePanel.occupied = false
+            window.orderFrontRegardless()
+        }
         followingCursor = false; followSpeed = 0; followSideX = -1; followSideY = -1; testMouse = nil
         hugEdges = true; edge = .bottom; mini = 0
         pendingThoughts.removeAll()
@@ -1781,6 +1846,21 @@ final class PetController: NSObject, NSMenuDelegate {
         expect(launchPanel.isShown, "passive hover halo opens the ring")
         expect(window.ignoresMouseEvents, "hover halo leaves the underlying app clickable")
         testMouse = nil
+
+        let housePoint = CGPoint(x: housePanel.frame.midX, y: housePanel.frame.midY)
+        expect(!housePanel.acceptsDrop(at: CGPoint(x: f.midX, y: f.midY), dogRect: .zero),
+               "house does not capture ordinary drops")
+        petMouseDown(at: bodyCenterOnScreen)
+        petMouseDragged(to: housePoint)
+        expect(housePanel.dropHighlighted, "house lights up while Pet is dragged over it")
+        petMouseUp(at: housePoint)
+        expect(sleepingInHouse && housePanel.occupied && !window.isVisible,
+               "dropping Pet in the house puts him to sleep and hides the standing dog")
+        step(120)
+        expect(sleepingInHouse, "house sleep lasts until clicked")
+        wakeFromHouse()
+        expect(!sleepingInHouse && !housePanel.occupied && window.isVisible && state == .idle,
+               "clicking the house brings Pet back awake")
 
         if failures.isEmpty { print("selftest: OK") } else { print("selftest: FAILED\n - " + failures.joined(separator: "\n - ")) }
         return failures.isEmpty
