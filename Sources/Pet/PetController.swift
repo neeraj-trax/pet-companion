@@ -288,6 +288,7 @@ final class PetController: NSObject, NSMenuDelegate {
         screenAsleep = false
         lastTick = CACurrentMediaTime()
         window.orderFrontRegardless()
+        if launchPanel.isShown { launchPanel.orderFrontRegardless() }
         if stashPanel.isShown { stashPanel.orderFrontRegardless() }
     }
 
@@ -1567,7 +1568,7 @@ final class PetController: NSObject, NSMenuDelegate {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var lines: [String] = []
         lines.append("state=\(state) edge=\(edge) mini=\(mini) peek=\(peek) followingCursor=\(followingCursor) followSpeed=\(followSpeed) origin=\(origin) screenVisible=\(currentScreen.visibleFrame)")
-        lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace) stashVisible=\(stashPanel.isShown)")
+        lines.append("windowVisible=\(window.isVisible) alpha=\(window.alphaValue) onActiveSpace=\(window.isOnActiveSpace) ringVisible=\(launchPanel.isShown) ringOnActiveSpace=\(launchPanel.isOnActiveSpace) stashVisible=\(stashPanel.isShown)")
         lines.append("atlas=\(SpriteAtlas.image != nil) coat=\(pose.coat) walk=\(pose.walk) squash=\(pose.squashX),\(pose.squashY) flop=\(pose.flop)")
         if let mask = window.contentView?.layer?.mask as? CAShapeLayer { lines.append("mask=\(mask.path?.boundingBox ?? .zero)") } else { lines.append("mask=none") }
         try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("state.txt"), atomically: true, encoding: .utf8)
@@ -1606,6 +1607,8 @@ final class PetController: NSObject, NSMenuDelegate {
         setOrigin(edgeTarget(for: .bottom, in: f, from: CGPoint(x: f.midX, y: 0)))
         enterIdle()
         print("selftest: screen", f)
+        expect(launchPanel.collectionBehavior.contains(.canJoinAllApplications),
+               "app ring joins other apps' full-screen Spaces")
         let menuTitles = makeMenu().items.filter { !$0.isSeparatorItem }.map(\.title)
         expect(menuTitles == ["Open Pet home…", "Open Stash", "Follow cursor", "Quit Pet"], "essential menu and follow control")
         let savedRingMode = appRingMode

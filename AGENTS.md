@@ -125,6 +125,8 @@ The gaze stability pass removes random idle gaze poses that could abruptly show 
 
 The Recent 6 app-ring pass added a persisted Pinned / Recent 6 control in Pet home. App activations maintain a deduplicated seven-entry history so the tray can display six previous apps while excluding the current one. The ring keeps Stash and music available in both modes. Self-test covers the six-item cap, repeated app activation, and returning to pinned apps. Release build, repeated self-test, home/ring/corner/pose renders, installed signature, refreshed DMG verification, and a fresh running-app snapshot (`atlas=true`) passed. The DMG SHA-256 is `beaa2be3c98ca94ce385b210b9bdbcb313c00b0aeb843b06d4b058284da79677`. macOS returned a transient -600 error on the first `open`; `open -a /Applications/Pet.app` succeeded and the running snapshot is fresh.
 
+The full-screen tray fix gives the ring panel macOS's `canJoinAllApplications` collection behavior, so it can appear over another app's full-screen Space when Pet is hovered there. Screen wake now reorders an already-open ring alongside Pet, and `--snapshot` reports `ringVisible` and `ringOnActiveSpace` for diagnosis. The release build, self-test, pose/ring/corner renders, installation, code signature, and running snapshot passed. A direct full-screen hover check remains for the owner because UI automation timed out while opening a test app.
+
 ## Known gaps / ideas not built
 
 - Sprite rows with no trigger yet: gentle oops, waiting, laptop, celebration. Wire a pose signal in the controller, then map it in the view.

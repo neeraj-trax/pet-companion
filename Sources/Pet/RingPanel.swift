@@ -78,7 +78,9 @@ final class RingPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         level = .statusBar
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        // The ring is a separate panel created after Pet. It must be allowed into
+        // another app's full-screen Space when the pointer opens it there.
+        collectionBehavior = [.canJoinAllSpaces, .canJoinAllApplications, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         animationBehavior = .none
