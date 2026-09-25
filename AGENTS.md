@@ -133,6 +133,8 @@ The dog-house pass adds a 150×142 pt nonactivating house at the bottom-right of
 
 Three house design studies are in `Assets/dog-house-concepts.png`: Cozy cottage, Pebble house, and A-frame nook. `Tools/render-house-concepts.swift` regenerates the sheet from the committed dog atlas. They are review options; the live house still uses the original drawing in `DogHousePanel.swift` until the owner chooses one.
 
+The follow-up side-angle studies are in `Assets/dog-house-side-concepts.png`: Side cottage, Rounded pod, and Side A-frame. `Tools/render-house-side-concepts.swift` regenerates this comparison with the same closed-eye dog face. These are design previews only; the installed house behavior and appearance remain as above pending the owner's choice.
+
 ## Known gaps / ideas not built
 
 - Sprite rows with no trigger yet: gentle oops, waiting, laptop, celebration. Wire a pose signal in the controller, then map it in the view.
