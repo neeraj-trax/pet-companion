@@ -1849,6 +1849,10 @@ final class PetController: NSObject, NSMenuDelegate {
         testMouse = nil
 
         let bedPoint = CGPoint(x: bedPanel.frame.midX, y: bedPanel.frame.midY)
+        expect(bedPanel.frame.size == DogBedPanel.emptySize
+               && bedPanel.frame.maxX >= f.maxX - 2
+               && bedPanel.frame.minY <= f.minY,
+               "empty bed is tiny and hugs the lower-right edge")
         expect(!bedPanel.acceptsDrop(at: CGPoint(x: f.midX, y: f.midY), dogRect: .zero),
                "bed does not capture ordinary drops")
         petMouseDown(at: bodyCenterOnScreen)
@@ -1857,11 +1861,15 @@ final class PetController: NSObject, NSMenuDelegate {
         petMouseUp(at: bedPoint)
         expect(sleepingInBed && bedPanel.occupied && !window.isVisible,
                "dropping Pet on the bed puts him to sleep and hides the standing dog")
+        expect(bedPanel.frame.size == DogBedPanel.occupiedSize,
+               "occupied bed grows to the half-size sleeping dog")
         step(120)
         expect(sleepingInBed, "bed sleep lasts until clicked")
         wakeFromBed()
         expect(!sleepingInBed && !bedPanel.occupied && window.isVisible && state == .idle,
                "clicking the bed brings Pet back awake")
+        expect(bedPanel.frame.size == DogBedPanel.emptySize,
+               "bed shrinks again when Pet wakes")
 
         if failures.isEmpty { print("selftest: OK") } else { print("selftest: FAILED\n - " + failures.joined(separator: "\n - ")) }
         return failures.isEmpty

@@ -3,8 +3,10 @@ import AppKit
 /// A small cushion in the screen corner. The empty bed is click-through;
 /// one click on the sleeping dog brings him back out.
 final class DogBedPanel: NSPanel {
-    static let size = CGSize(width: 148, height: 100)
-    private let bed = DogBedView(frame: CGRect(origin: .zero, size: size))
+    static let occupiedSize = CGSize(width: 74, height: 50)
+    static let emptySize = CGSize(width: 44, height: 30)
+    private let bed = DogBedView(frame: CGRect(origin: .zero, size: emptySize))
+    private var lastVisibleFrame: CGRect?
     var onWake: (() -> Void)?
 
     var occupied: Bool {
@@ -12,6 +14,10 @@ final class DogBedPanel: NSPanel {
         set {
             bed.occupied = newValue
             ignoresMouseEvents = !newValue
+            let size = newValue ? Self.occupiedSize : Self.emptySize
+            setContentSize(size)
+            bed.frame = CGRect(origin: .zero, size: size)
+            if let lastVisibleFrame { place(in: lastVisibleFrame) }
         }
     }
     var dropHighlighted: Bool {
@@ -24,7 +30,7 @@ final class DogBedPanel: NSPanel {
     }
 
     init() {
-        super.init(contentRect: CGRect(origin: .zero, size: Self.size),
+        super.init(contentRect: CGRect(origin: .zero, size: Self.emptySize),
                    styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
@@ -44,16 +50,18 @@ final class DogBedPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func place(in visibleFrame: CGRect) {
-        setFrameOrigin(CGPoint(x: (visibleFrame.maxX - Self.size.width - 10).rounded(),
-                               y: (visibleFrame.minY + 4).rounded()))
+        lastVisibleFrame = visibleFrame
+        // The transparent art margin stays on-screen while the pillow hugs the corner.
+        setFrameOrigin(CGPoint(x: (visibleFrame.maxX - frame.width + 2).rounded(),
+                               y: (visibleFrame.minY - 2).rounded()))
     }
 
     func acceptsDrop(at pointer: CGPoint, dogRect: CGRect) -> Bool {
-        // Keep the drop gesture forgiving even though the visible cushion is smaller.
-        let target = frame.insetBy(dx: -20, dy: -16)
+        // A generous invisible drop target makes the tiny empty pillow usable.
+        let target = frame.insetBy(dx: -24, dy: -20)
         if target.contains(pointer) { return true }
         let overlap = target.intersection(dogRect)
-        return !overlap.isNull && overlap.width > 40 && overlap.height > 30
+        return !overlap.isNull && overlap.width > 28 && overlap.height > 24
     }
 
     func tick(time: TimeInterval) {
@@ -175,7 +183,8 @@ final class DogBedView: NSView {
 
 enum DogBedPreview {
     static func render(to url: URL, occupied: Bool = true) {
-        let view = DogBedView(frame: CGRect(origin: .zero, size: DogBedPanel.size))
+        let size = occupied ? DogBedPanel.occupiedSize : DogBedPanel.emptySize
+        let view = DogBedView(frame: CGRect(origin: .zero, size: size))
         view.occupied = occupied
         view.coat = .hojiro
         view.sleepPhase = 0.5

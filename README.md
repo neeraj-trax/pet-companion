@@ -28,9 +28,9 @@ and gets out of the way while you work.
 - **Music**: when Spotify or Apple Music is playing, a player chip appears first in the ring;
   click it to play/pause (macOS asks once for permission).
 - **Move it**: drag it anywhere. Near an edge it tucks into that edge; elsewhere it stays put.
-- **Let it sleep**: drag the dog onto the little cushion in the bottom-right corner and release.
-  He curls up with closed eyes and floating “Zz.” He stays there until you click the bed to wake him,
-  even if you quit and reopen Pet.
+- **Let it sleep**: drag the dog onto the tiny cushion at the bottom-right edge and release.
+  The cushion expands with a half-size sleeping dog, closed eyes and floating “Zz.” He stays there
+  until you click the bed to wake him, even if you quit and reopen Pet.
 - **Out of the way**: when you type for a while or stay in one app for 15 minutes, it shrinks to
   three-quarter size and strolls along the edge.
   Move your cursor near it and it grows back. It stays visible across full-screen app Spaces.
