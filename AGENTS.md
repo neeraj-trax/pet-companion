@@ -138,6 +138,8 @@ The 2026-09-30 bed-size pass makes the empty crescent 44×30 pt and the occupied
 
 The 2026-10-07 drag pass makes picking up the dog feel like holding him by a collar: he shows a front-facing, four-paw pose with a small chest collar, pivots near the neck, and wriggles gently while held. On release the collar disappears immediately and a brief damped settle returns him to normal; Reduce Motion suppresses the shake and settle. The atlas itself is unchanged. Self-test covers held/released state, and the pose renderer includes left and right held examples. Release build, self-test, pose/ring/bed renders, installed signature, and running snapshot passed.
 
+The 2026-10-07 drag correction attaches the visible collar point to the cursor over a short pickup transition; the cursor becomes a closed hand while held. The sprite pivots at that same point, so the paws swing under the hand rather than the entire dog simply translating. The wriggle is stronger, a free-space release falls a short distance with restrained sideways momentum, and the existing settling motion restores the normal pose. Reduce Motion keeps the cursor attachment and omits the shake. Self-test checks collar-to-pointer alignment, release, bed drop, and ordinary movement; pose/ring/bed renders and the installed running snapshot passed.
+
 ## Known gaps / ideas not built
 
 - Sprite rows with no trigger yet: gentle oops, waiting, laptop, celebration. Wire a pose signal in the controller, then map it in the view.

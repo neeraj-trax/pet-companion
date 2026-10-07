@@ -103,10 +103,13 @@ final class PetController: NSObject, NSMenuDelegate {
     private var pressed = false
     private var pressStart = CGPoint.zero
     private var pressOrigin = CGPoint.zero
+    private var dragPointer = CGPoint.zero
+    private var dragCursorPushed = false
     private var lastDragX: CGFloat = 0
     private var dragVelocity: CGFloat = 0
     private var tilt: CGFloat = 0
     private var releasedAt: TimeInterval = -1000
+    private var fallingAfterDrag = false
 
     // landing / pulses
     private var landFrom = CGPoint.zero
@@ -364,6 +367,11 @@ final class PetController: NSObject, NSMenuDelegate {
     var bodyCenterOnScreen: CGPoint {
         let y = PetGeometry.bodyBottom + (PetGeometry.bodyCenter.y - PetGeometry.bodyBottom) * petScale
         return CGPoint(x: origin.x + PetGeometry.bodyCenter.x, y: origin.y + y)
+    }
+    private var collarPointOnScreen: CGPoint {
+        let point = PetGeometry.collarPoint
+        let y = PetGeometry.bodyBottom + (point.y - PetGeometry.bodyBottom) * petScale
+        return CGPoint(x: origin.x + point.x, y: origin.y + y)
     }
     private var refPoint: CGPoint { bodyCenterOnScreen }
     private var typing: Bool { keyIdle < 3 }
@@ -633,7 +641,9 @@ final class PetController: NSObject, NSMenuDelegate {
         case .poked:
             if stateTime > 0.5 { enterIdle() }
         case .dragging:
-            break
+            updateHeldDragPosition()
+            bedPanel.place(in: currentScreen.visibleFrame)
+            bedPanel.dropHighlighted = bedPanel.acceptsDrop(at: dragPointer, dogRect: hitRectOnScreen)
         case .shrinking:
             updateShrink(dt: dt)
         case .strolling:
@@ -642,7 +652,7 @@ final class PetController: NSObject, NSMenuDelegate {
             updateGrow(dt: dt, mouse: mouse)
         case .landing:
             let p = min(1, stateTime / landDuration)
-            let e = 1 - pow(1 - p, 3)
+            let e = fallingAfterDrag ? p * p : 1 - pow(1 - p, 3)
             setOrigin(CGPoint(x: landFrom.x + (landTo.x - landFrom.x) * e,
                               y: landFrom.y + (landTo.y - landFrom.y) * e))
             if p >= 1 {
@@ -1033,10 +1043,10 @@ final class PetController: NSObject, NSMenuDelegate {
             if p > 0.32 && p < 0.44 { sy = 0.86; sx = 1.08 }
             bob = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : max(0, sin(p * .pi)) * 3
         case .dragging:
-            let wriggle = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : sin(t * 21)
-            sy = 1.07 + 0.018 * wriggle
-            sx = 0.95 - 0.018 * wriggle
-            bob = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 1.3 * sin(t * 17)
+            let wriggle = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : sin(t * 34)
+            sy = 1.07 + 0.025 * wriggle
+            sx = 0.94 - 0.025 * wriggle
+            bob = 0  // keep the collar fixed to the cursor; only the body wriggles
         case .shrinking, .strolling, .growing, .landing:
             bob = 0
         }
@@ -1082,10 +1092,10 @@ final class PetController: NSObject, NSMenuDelegate {
             let vx = (origin.x - lastDragX) / max(dtf, 0.001)
             lastDragX = origin.x
             dragVelocity = approach(dragVelocity, vx, rate: 10, dt: dtf)
-            let wriggle: CGFloat = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-                ? 0 : 0.10 * sin(t * 21) + 0.035 * sin(t * 34)
-            let target = max(-0.20, min(0.20, -dragVelocity * 0.00035 + wriggle))
-            tilt = approach(tilt, target, rate: 14, dt: dtf)
+            let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            let wriggle: CGFloat = reduced ? 0 : 0.15 * sin(t * 34) + 0.025 * sin(t * 11)
+            let target: CGFloat = reduced ? 0 : max(-0.22, min(0.22, -dragVelocity * 0.00020 + wriggle))
+            tilt = approach(tilt, target, rate: 22, dt: dtf)
         } else {
             tilt = approach(tilt, 0, rate: 8, dt: dtf)
         }
@@ -1128,6 +1138,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private func enterIdle() {
         state = .idle
         stateTime = 0
+        fallingAfterDrag = false
         nextDecisionIn = Double.random(in: 4...10)
     }
 
@@ -1237,10 +1248,11 @@ final class PetController: NSObject, NSMenuDelegate {
         edge = (hugEdges && edgeDistance < 150) ? nearestEdge(in: f) : .free
         var from = origin
         if edge == .bottom || edge == .top || edge == .free {
-            let toss = max(-250, min(250, dragVelocity * 0.25))
+            let toss = max(-28, min(28, dragVelocity * 0.025))
             from.x += toss
-            if abs(toss) > 40 { pose.facing = toss > 0 ? 1 : -1 }
+            if abs(toss) > 16 { pose.facing = toss > 0 ? 1 : -1 }
         }
+        if edge == .free { from.y -= 20 * petScale }
         landTo = edgeTarget(for: edge, in: f, from: from)
         landFrom = origin
         if edge == .left { pose.facing = 1 } else if edge == .right { pose.facing = -1 }
@@ -1253,6 +1265,7 @@ final class PetController: NSObject, NSMenuDelegate {
             return
         }
         landDuration = min(max(Double(dist) / 1500, 0.22), 0.65)
+        fallingAfterDrag = true
         state = .landing
         stateTime = 0
     }
@@ -1377,6 +1390,7 @@ final class PetController: NSObject, NSMenuDelegate {
         pressed = true
         pressStart = p
         pressOrigin = origin
+        dragPointer = p
         lastDragX = origin.x
         dragVelocity = 0
         if state == .strolling { grow(fast: true, openPanel: false) }
@@ -1384,6 +1398,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     func petMouseDragged(to p: CGPoint) {
         guard pressed else { return }
+        dragPointer = p
         if state != .dragging {
             if hypot(p.x - pressStart.x, p.y - pressStart.y) < 4 { return }
             if followingCursor { setFollowingCursor(false, saveOnStop: false) }
@@ -1393,18 +1408,36 @@ final class PetController: NSObject, NSMenuDelegate {
             stateTime = 0
             curiousT = -1
             curiousTilt = 0
+            if !selfTesting && !dragCursorPushed {
+                NSCursor.closedHand.push()
+                dragCursorPushed = true
+            }
             if launchPanel.isShown { launchPanel.hide() }
             panelCooldownUntil = time + 0.6
         }
-        setOrigin(CGPoint(x: pressOrigin.x + (p.x - pressStart.x), y: pressOrigin.y + (p.y - pressStart.y)))
+        updateHeldDragPosition()
         bedPanel.place(in: currentScreen.visibleFrame)
         bedPanel.dropHighlighted = bedPanel.acceptsDrop(at: p, dogRect: hitRectOnScreen)
+    }
+
+    private func updateHeldDragPosition() {
+        let grip = PetGeometry.collarPoint
+        let localY = PetGeometry.bodyBottom + (grip.y - PetGeometry.bodyBottom) * petScale
+        let q = min(1, max(0, stateTime / 0.18))
+        let attach = q * q * (3 - 2 * q)
+        let initialOffset = CGPoint(x: pressStart.x - pressOrigin.x - grip.x,
+                                    y: pressStart.y - pressOrigin.y - localY)
+        setOrigin(CGPoint(x: dragPointer.x - grip.x + initialOffset.x * (1 - attach),
+                          y: dragPointer.y - localY + initialOffset.y * (1 - attach)))
     }
 
     func petMouseUp(at p: CGPoint) {
         guard pressed else { return }
         pressed = false
+        if dragCursorPushed { NSCursor.pop(); dragCursorPushed = false }
         if state == .dragging {
+            dragPointer = p
+            updateHeldDragPosition()
             if bedPanel.acceptsDrop(at: p, dogRect: hitRectOnScreen) { enterBed() }
             else { bedPanel.dropHighlighted = false; release() }
         }
@@ -1773,6 +1806,8 @@ final class PetController: NSObject, NSMenuDelegate {
         let c = bodyCenterOnScreen
         petMouseDown(at: c); petMouseDragged(to: CGPoint(x: c.x + 60, y: c.y + 30)); step(0.2)
         expect(state == .dragging && pose.held, "dragging uses the held-dog pose")
+        expect(hypot(collarPointOnScreen.x - c.x - 60, collarPointOnScreen.y - c.y - 30) < 2,
+               "the held collar stays under the pointer")
         petMouseUp(at: CGPoint(x: c.x + 60, y: c.y + 30)); step(0.05)
         expect(!pose.held && state != .dragging, "dropping releases the collar pose")
         step(2)
