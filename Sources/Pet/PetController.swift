@@ -106,6 +106,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private var lastDragX: CGFloat = 0
     private var dragVelocity: CGFloat = 0
     private var tilt: CGFloat = 0
+    private var releasedAt: TimeInterval = -1000
 
     // landing / pulses
     private var landFrom = CGPoint.zero
@@ -896,6 +897,7 @@ final class PetController: NSObject, NSMenuDelegate {
         let dtf = CGFloat(dt)
         let napping = state == .napping
         pose.napping = napping
+        pose.held = state == .dragging
         let yawning = napping && stateTime < 0.9
         let happy = state == .poked || launchPanel.isShown || dropHovering || time < welcomeUntil
 
@@ -1031,13 +1033,25 @@ final class PetController: NSObject, NSMenuDelegate {
             if p > 0.32 && p < 0.44 { sy = 0.86; sx = 1.08 }
             bob = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : max(0, sin(p * .pi)) * 3
         case .dragging:
-            sy = 1.06; sx = 0.96
+            let wriggle = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : sin(t * 21)
+            sy = 1.07 + 0.018 * wriggle
+            sx = 0.95 - 0.018 * wriggle
+            bob = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 1.3 * sin(t * 17)
         case .shrinking, .strolling, .growing, .landing:
             bob = 0
         }
         // small while strolling (anchored at the feet); the nap pose is drawn lying down by the view
         sx *= miniScale
         sy *= miniScale
+        let settleTime = time - releasedAt
+        if settleTime >= 0 && settleTime < 0.42 && state != .dragging
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            let fade = CGFloat(pow(1 - settleTime / 0.42, 2))
+            let settle = fade * sin(CGFloat(settleTime) * 31)
+            sy *= 1 - 0.055 * settle
+            sx *= 1 + 0.035 * settle
+            bob += 2 * fade * abs(sin(CGFloat(settleTime) * 23))
+        }
         if pulseT >= 0 {
             pulseT += dt
             let q = CGFloat(pulseT / pulseDuration)
@@ -1068,12 +1082,20 @@ final class PetController: NSObject, NSMenuDelegate {
             let vx = (origin.x - lastDragX) / max(dtf, 0.001)
             lastDragX = origin.x
             dragVelocity = approach(dragVelocity, vx, rate: 10, dt: dtf)
-            tilt = approach(tilt, max(-0.32, min(0.32, -dragVelocity * 0.00045)), rate: 8, dt: dtf)
+            let wriggle: CGFloat = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+                ? 0 : 0.10 * sin(t * 21) + 0.035 * sin(t * 34)
+            let target = max(-0.20, min(0.20, -dragVelocity * 0.00035 + wriggle))
+            tilt = approach(tilt, target, rate: 14, dt: dtf)
         } else {
             tilt = approach(tilt, 0, rate: 8, dt: dtf)
         }
         curiousTilt = approach(curiousTilt, curious ? -0.14 * (dx > 0 ? 1 : -1) : 0, rate: 6, dt: dtf)
         pose.tilt = tilt * pose.facing + curiousTilt
+        if settleTime >= 0 && settleTime < 0.42 && state != .dragging
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            let fade = CGFloat(pow(1 - settleTime / 0.42, 2))
+            pose.tilt += 0.075 * fade * sin(CGFloat(settleTime) * 31)
+        }
 
         // shadow, water, sleep bubbles, particles
         var shadowTarget: CGFloat = 0
@@ -1205,6 +1227,9 @@ final class PetController: NSObject, NSMenuDelegate {
 
     private func release() {
         let f = currentScreen.visibleFrame
+        releasedAt = time
+        pose.held = false
+        view.pose = pose
         mini = 0
         // stay wherever it was dropped unless it's close to an edge; then tuck into that edge
         let c = bodyCenterOnScreen
@@ -1234,6 +1259,7 @@ final class PetController: NSObject, NSMenuDelegate {
 
     private func enterBed() {
         launchPanel.hide()
+        pose.held = false
         bedPanel.dropHighlighted = false
         bedPanel.place(in: currentScreen.visibleFrame)
         bedPanel.occupied = true
@@ -1257,6 +1283,8 @@ final class PetController: NSObject, NSMenuDelegate {
         edge = hugEdges ? .bottom : .free
         peek = 1; peekTarget = 1; mini = 0
         pose.napping = false; pose.flop = 0; pose.eyeOpen = 1; pose.eyeStyle = .open
+        pose.held = false
+        view.pose = pose
         let besideBed = CGPoint(x: bedPanel.frame.minX - 64 - PetGeometry.bodyCenter.x,
                                 y: f.minY - PetGeometry.bodyBottom + 6)
         setOrigin(edgeTarget(for: edge, in: f, from: besideBed))
@@ -1364,6 +1392,7 @@ final class PetController: NSObject, NSMenuDelegate {
             state = .dragging
             stateTime = 0
             curiousT = -1
+            curiousTilt = 0
             if launchPanel.isShown { launchPanel.hide() }
             panelCooldownUntil = time + 0.6
         }
@@ -1743,8 +1772,10 @@ final class PetController: NSObject, NSMenuDelegate {
 
         let c = bodyCenterOnScreen
         petMouseDown(at: c); petMouseDragged(to: CGPoint(x: c.x + 60, y: c.y + 30)); step(0.2)
-        expect(state == .dragging, "dragging")
-        petMouseUp(at: CGPoint(x: c.x + 60, y: c.y + 30)); step(2)
+        expect(state == .dragging && pose.held, "dragging uses the held-dog pose")
+        petMouseUp(at: CGPoint(x: c.x + 60, y: c.y + 30)); step(0.05)
+        expect(!pose.held && state != .dragging, "dropping releases the collar pose")
+        step(2)
         expect(state == .idle && edge == .bottom, "drop near the bottom stays on the bottom edge")
 
         startStroll(.menu); step(2)

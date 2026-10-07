@@ -14,8 +14,8 @@ Current character: the blue floppy-eared dog. This replaces the private robot at
 | Row (one-based) | Artwork | Trigger |
 | --- | --- | --- |
 | 1 | Idle, including blink | Default |
-| 2 | Walk right | `pose.walk > 0`, or right-facing drag |
-| 3 | Walk left | `pose.walk < 0`, or left-facing drag |
+| 2 | Walk right | `pose.walk > 0` |
+| 3 | Walk left | `pose.walk < 0` |
 | 4 | Wave | Happy/pill-open pose; frame 2 is the app icon |
 | 5 | Jump | Poke/drop-hover pose |
 | 6 | Gentle oops | Not triggered by the controller yet; frame 3 is used for curled-up nap |
@@ -24,7 +24,7 @@ Current character: the blue floppy-eared dog. This replaces the private robot at
 | 9 | Celebration | Not triggered yet |
 | 10–11 | Sixteen supplied rotation views | Only the forward-facing cells V1–V3 are used for cursor tracking; back and full-profile views remain in the atlas but are not selected by pointer direction |
 
-All non-walking triggered rows play three fast cycles then return to slow idle. Walk loops while `pose.walk` is nonzero. The sprite does not mirror; left and right walking have separate rows. Nap draws the actual curled-up frame without rotating the dog. Routine idle thought signals no longer select the repeated waiting row; the sprite path does not currently draw a thought bubble. No robot face-screen overlays or sound bars are drawn.
+All non-walking triggered rows play three fast cycles then return to slow idle. Walk loops while `pose.walk` is nonzero. The sprite does not mirror; left and right walking have separate rows. Nap draws the actual curled-up frame without rotating the dog. While dragging, `pose.held` fixes the front-facing idle frame, draws a small collar beneath the face, and pivots the whole sprite near the neck so the paws swing instead of walking in mid-air. The controller supplies a gentle wriggle and a brief release settle; Reduce Motion suppresses both. Routine idle thought signals no longer select the repeated waiting row; the sprite path does not currently draw a thought bubble. No robot face-screen overlays or sound bars are drawn.
 
 `pose.look.x` is a world-space direction. `SpriteAtlas.lookView` selects a front-facing pose from waiting F3–F4 (pointer above) or gaze V1–V3 (beside/below), mirroring the left/right turns as needed. Only the mirrored vector fallback converts the x direction to body-local coordinates. The pose renderer includes eight labelled pointer directions and uses the same selection and mirroring path as the live dog.
 

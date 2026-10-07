@@ -27,7 +27,8 @@ and gets out of the way while you work.
   to Trash; the originals stay where they were. **Undo** remains available until you close the shelf.
 - **Music**: when Spotify or Apple Music is playing, a player chip appears first in the ring;
   click it to play/pause (macOS asks once for permission).
-- **Move it**: drag it anywhere. Near an edge it tucks into that edge; elsewhere it stays put.
+- **Move it**: pick the dog up and drag him anywhere. He dangles and wriggles from his collar,
+  then settles when released. Near an edge he tucks into it; elsewhere he stays put.
 - **Let it sleep**: drag the dog onto the tiny cushion at the bottom-right edge and release.
   The cushion expands with a half-size sleeping dog, closed eyes and floating “Zz.” He stays there
   until you click the bed to wake him, even if you quit and reopen Pet.

@@ -136,6 +136,8 @@ The 2026-09-25 cushion refinement uses the selected small crescent design: sage-
 
 The 2026-09-30 bed-size pass makes the empty crescent 44×30 pt and the occupied dog-and-cushion 74×50 pt, half the previous occupied size. Both sit flush against the bottom-right edge of the visible display. The empty bed remains click-through, with a larger invisible drop zone than its artwork; sleeping still wakes only on a bed click. The roaming dog and its Pet home size control are unchanged. The occupied and empty preview assets were refreshed, and build, self-test, visual renders, installed signature, and live snapshot passed.
 
+The 2026-10-07 drag pass makes picking up the dog feel like holding him by a collar: he shows a front-facing, four-paw pose with a small chest collar, pivots near the neck, and wriggles gently while held. On release the collar disappears immediately and a brief damped settle returns him to normal; Reduce Motion suppresses the shake and settle. The atlas itself is unchanged. Self-test covers held/released state, and the pose renderer includes left and right held examples. Release build, self-test, pose/ring/bed renders, installed signature, and running snapshot passed.
+
 ## Known gaps / ideas not built
 
 - Sprite rows with no trigger yet: gentle oops, waiting, laptop, celebration. Wire a pose signal in the controller, then map it in the view.

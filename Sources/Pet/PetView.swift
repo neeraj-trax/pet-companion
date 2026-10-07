@@ -134,8 +134,8 @@ final class PetView: NSView {
 
     /// Which animation row the controller's pose asks for. The pose is the only contract with the controller.
     private func inferSpriteState(_ p: PetPose) -> SpriteState {
+        if p.held { return .idle }                                                        // paws dangle; don't walk in mid-air
         if p.walk != 0 { return p.walk < 0 ? .runningLeft : .runningRight }               // strolling
-        if p.mouth == .surprised { return p.facing < 0 ? .runningLeft : .runningRight }     // being dragged
         if p.mouth == .chomp && p.flop < 0.5 { return .jumping }                             // poke / drop hover
         if p.mouth == .happy { return .waving }                                             // pill open, welcome
         // Routine thought signals keep the current face. The sprite path does
@@ -155,6 +155,8 @@ final class PetView: NSView {
             frame = o
         } else if napping {
             frame = SpriteFrame(row: 5, col: 2)                                              // dog curled up with eyes closed
+        } else if p.held {
+            frame = SpriteFrame(row: 0, col: 0)                                              // front face and four hanging paws
         } else {
             frame = SpriteAtlas.frame(for: state, elapsed: TimeInterval(p.time - spriteStateStart), reducedMotion: reduced, loop: p.walk != 0)
             let lookMag = hypot(p.look.x, p.look.y)
@@ -169,22 +171,46 @@ final class PetView: NSView {
         guard let cell = atlas.cropping(to: SpriteAtlas.rect(of: frame)) else { return }
 
         let s = PetGeometry.spriteScale
-        let feet = CGPoint(x: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom)
+        // When held, the upper body stays near the grab point and the paws swing below it.
+        let pivot = p.held
+            ? CGPoint(x: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom + 82)
+            : CGPoint(x: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom)
         ctx.saveGState()
-        ctx.translateBy(x: feet.x, y: feet.y + p.bob)
+        ctx.translateBy(x: pivot.x, y: pivot.y + p.bob)
         if !napping {
             ctx.scaleBy(x: p.squashX, y: p.squashY)
-            ctx.rotate(by: p.tilt * 0.6)
+            ctx.rotate(by: p.tilt * (p.held ? 1 : 0.6))
         }
-        ctx.translateBy(x: -feet.x, y: -feet.y)
+        ctx.translateBy(x: -pivot.x, y: -pivot.y)
         if mirrorGaze {
-            ctx.translateBy(x: 2 * feet.x, y: 0)
+            ctx.translateBy(x: 2 * pivot.x, y: 0)
             ctx.scaleBy(x: -1, y: 1)
         }
         ctx.interpolationQuality = .high
         let o = PetGeometry.spriteCellOrigin
         ctx.draw(cell, in: CGRect(x: o.x, y: o.y, width: SpriteAtlas.cell.width * s, height: SpriteAtlas.cell.height * s))
+        if p.held { drawHeldCollar(ctx) }
         ctx.restoreGState()
+    }
+
+    private func drawHeldCollar(_ ctx: CGContext) {
+        let ink = NSColor(red: 0.13, green: 0.17, blue: 0.21, alpha: 1)
+        let strap = CGMutablePath()
+        strap.move(to: CGPoint(x: 62, y: 72))
+        strap.addQuadCurve(to: CGPoint(x: 108, y: 72), control: CGPoint(x: 85, y: 60))
+        ctx.addPath(strap)
+        ctx.setStrokeColor(ink.cgColor)
+        ctx.setLineWidth(6)
+        ctx.setLineCap(.round)
+        ctx.strokePath()
+        ctx.addPath(strap)
+        ctx.setStrokeColor(NSColor(red: 0.79, green: 0.48, blue: 0.34, alpha: 1).cgColor)
+        ctx.setLineWidth(3.7)
+        ctx.strokePath()
+        ctx.setFillColor(ink.cgColor)
+        ctx.fillEllipse(in: CGRect(x: 81.5, y: 62, width: 7, height: 7))
+        ctx.setFillColor(NSColor(red: 0.96, green: 0.79, blue: 0.42, alpha: 1).cgColor)
+        ctx.fillEllipse(in: CGRect(x: 83, y: 63.5, width: 4, height: 4))
     }
 
     // MARK: Character
@@ -588,6 +614,10 @@ enum IconRenderer {
         cells.append(("nap entry", p, nil))
         cells.append(("walk right", base, SpriteFrame(row: 1, col: 2)))
         cells.append(("walk left", base, SpriteFrame(row: 2, col: 2)))
+        p = base; p.held = true; p.mouth = .surprised; p.squashX = 0.95; p.squashY = 1.07; p.tilt = -0.20
+        cells.append(("held left", p, nil))
+        p = base; p.held = true; p.mouth = .surprised; p.squashX = 0.95; p.squashY = 1.07; p.tilt = 0.20
+        cells.append(("held right", p, nil))
         cells.append(("waving", base, SpriteFrame(row: 3, col: 1)))
         cells.append(("jumping", base, SpriteFrame(row: 4, col: 2)))
         cells.append(("gentle oops", base, SpriteFrame(row: 5, col: 1)))
