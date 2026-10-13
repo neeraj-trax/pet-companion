@@ -105,7 +105,6 @@ enum PetGeometry {
     /// Dog sprites are up to 170 px wide and tall. Idle stands about 108 pt tall.
     static let spriteScale: CGFloat = 0.82
     static let bodyCenter = CGPoint(x: 85, y: 74)   // unchanged: the controller's grab/dive thresholds hang off this
-    static let collarPoint = CGPoint(x: 85, y: 68) // shared visual/pointer anchor while picked up
     static let bodyHalfWidth: CGFloat = 70
     static let bodyHalfHeight: CGFloat = 46          // bodyBottom 28 … bodyTop 120
     /// Half the drawn character's maximum height.

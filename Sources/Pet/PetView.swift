@@ -172,7 +172,9 @@ final class PetView: NSView {
 
         let s = PetGeometry.spriteScale
         // When held, the upper body stays near the grab point and the paws swing below it.
-        let pivot = p.held ? PetGeometry.collarPoint : CGPoint(x: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom)
+        let pivot = p.held
+            ? CGPoint(x: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom + 82)
+            : CGPoint(x: PetGeometry.bodyCenter.x, y: PetGeometry.bodyBottom)
         ctx.saveGState()
         ctx.translateBy(x: pivot.x, y: pivot.y + p.bob)
         if !napping {
