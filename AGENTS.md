@@ -100,7 +100,7 @@ Saved data: `~/Library/Application Support/Pet/shortcuts.json` (pinned apps), `~
 - Functionality agent: everything except `PetView.swift`, `Sprite.swift`, and the drawing-related constants / `hitPath` in `PetPose.swift`.
 - Visuals agent: `PetView.swift`, `Sprite.swift`, drawing constants in `PetPose.swift`. It must not rename `PetPose` fields.
 - Never build while the other agent is mid-edit; one finishes, builds, then the other starts.
-- Briefs: `VISUALS-BRIEF.md` (what the visuals agent was asked), `VISUALS-HANDOFF.md` (what it changed and how sprite rows map to pose fields).
+- `VISUALS-HANDOFF.md` records how sprite rows map to pose fields. The older shark-era visuals brief remains in Git history only.
 
 ## Assets
 
@@ -154,8 +154,8 @@ The 2026-10-13 cursor-attached collar revision (`ace49b6`) was reverted at the o
 
 ## Public GitHub release
 
-On 2026-10-14 the owner requested a public version. The development repository remains private at `neeraj-trax/pet-companion`. A clean public repository was created at https://github.com/neeraj-trax/pet-companion-public with a fresh root commit (`cda23a2`), so historic local paths, rejected concepts, and internal handoff notes are not exposed. Its v0.1.0 release includes the Apple Silicon DMG and `SHA256SUMS.txt`; the DMG SHA-256 is `c794332051b87b1499487b0f3e6aa943e520f7ecccc41fd2e0340d57afeb077a`. It is ad-hoc signed, not notarized. The public README covers installation, macOS 13+, features, privacy, source builds, limitations, and current reuse terms. The official DMG may be shared for personal use. No open-source license has been granted for separate source or artwork reuse; ask the owner before adding one.
+On 2026-10-14 the owner chose to make this existing repository, `neeraj-trax/pet-companion`, public with its full history. The earlier clean export at `neeraj-trax/pet-companion-public` is superseded; this repository is the canonical source and release home. The code and build scripts are MIT licensed in `LICENSE`. Dog artwork in `Assets/` and the generated dog icon remain reserved under `Assets/README.md`; the official DMG may be shared for personal use. Keep these scopes clear in future releases.
 
-The public snapshot includes `.gitignore`, `README.md`, `Package.swift`, `Info.plist`, `build-app.sh`, `build-dmg.sh`, `Sources/Pet/`, `Tools/prepare-dog-atlas.swift`, the six current dog PNGs in `Assets/`, and a macOS build workflow. Keep the legacy robot atlas, local build artifacts, Stash data, `START-HERE.md`, this file, and historical concept docs out of the public repository. Future public updates should copy only this allowlist into a clean public checkout, build and self-test there, verify the DMG contents and signature, then push and publish its release. Never merge or push the private repository's history into the public one.
+The v0.1.0 release is an Apple Silicon DMG for macOS 13+, ad-hoc signed and not notarized. The README describes installation, features, privacy, source builds, limitations, and license boundaries. The public build workflow compiles, self-tests, and checks the bundled atlas. Keep the local robot atlas ignored and out of all app bundles and releases. Historical notes include local file paths but the history scan found no credential patterns or tracked robot atlas.
 
-For this release, the public export built and self-tested independently; the pose and ring renders were inspected, the DMG was mounted read-only, its app signature and dog atlas were verified, and the installed development app's running snapshot reported `atlas=true`.
+The canonical v0.1.0 package passed `swift build -c release`, the build-app self-test and a separate self-test, pose/ring renders, read-only DMG mounting, app signature verification, atlas and license-notice checks, reinstall, and a running snapshot (`atlas=true`). Its DMG SHA-256 is `c48e5ebb22a60396f4b7efaba951a30bf94376ad76b519110f1c7db8cf72281c`. macOS returned a transient `open` error -600 on the first launch; retrying `open -a /Applications/Pet.app` succeeded and the new process was confirmed.

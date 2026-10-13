@@ -1,18 +1,16 @@
 # Start here (new agent)
 
-Project folder: `/Users/passwordis1234/Documents/claude max experiment/PET`
-Development Git: https://github.com/neeraj-trax/pet-companion (private, branch `main`)
-Public app and release: https://github.com/neeraj-trax/pet-companion-public
+Repository: https://github.com/neeraj-trax/pet-companion (public, branch `main`)
+Release: https://github.com/neeraj-trax/pet-companion/releases/latest
+Run the commands below from this repository root.
 
 1. Read `AGENTS.md` in this folder first. It has the code map, how the app works, how to verify without a screen, and the list of what is unfinished. Do not read every source file before starting.
 2. Read `VISUALS-HANDOFF.md` only if you are touching the drawing (`PetView.swift`, `Sprite.swift`).
-3. Public releases use a separate clean repository; do not push this private repository's history to it. See the public-release note at the end of `AGENTS.md`.
-4. The dog character art is `Assets/pet-dog-atlas.png` and is included in shareable builds. The old private `Assets/pet-atlas.webp` remains ignored by Git and is not loaded or shipped.
+3. The dog character art is `Assets/pet-dog-atlas.png` and is included in shareable builds. The old private `Assets/pet-atlas.webp` remains ignored by Git and is not loaded or shipped.
 
 ## Build and run
 
 ```bash
-cd "/Users/passwordis1234/Documents/claude max experiment/PET"
 swift build -c release          # compile
 ./build-app.sh                  # compile + self-test + bundle → build/Pet.app
 pkill -x Pet
@@ -49,6 +47,6 @@ Then open the PNG and look at it. `--snapshot` writes `$TMPDIR/pet-debug/view.pn
 - Owner is a non-technical designer. Reply in short plain sentences and end with a next step.
 - Vibe: a cozy tiny friend, never a utility widget, never distracting during work.
 - After each round: rebuild, reinstall to `/Applications`, relaunch, update docs, commit, and push.
-- The owner confirmed `https://github.com/neeraj-trax/pet-companion.git` as the intended private remote and explicitly authorized pushing on 2026-09-23.
+- The owner confirmed `https://github.com/neeraj-trax/pet-companion.git` as the intended remote, authorized pushing on 2026-09-23, and chose to make this repository public with its full history on 2026-10-14.
 - Keep `AGENTS.md` up to date when behaviour changes. That file is the contract for the next agent.
 - If two agents work at once, keep the ownership split in `AGENTS.md` (one owns the drawing files, the other everything else) and never build while the other is mid-edit.

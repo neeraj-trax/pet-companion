@@ -6,7 +6,7 @@ Pet is a small, animated dog that lives on your Mac desktop. Hover over him to o
 
 ## Download and install
 
-Pet currently runs on **Apple Silicon Macs with macOS 13 or later**. Download `Pet.dmg` from the [latest release](https://github.com/neeraj-trax/pet-companion-public/releases/latest), open it, and drag **Pet.app** into Applications. Launch Pet from Applications. He appears on the desktop and in the menu bar; there is no Dock icon. Open Pet.app again to show Pet home.
+Pet currently runs on **Apple Silicon Macs with macOS 13 or later**. Download `Pet.dmg` from the [latest release](https://github.com/neeraj-trax/pet-companion/releases/latest), open it, and drag **Pet.app** into Applications. Launch Pet from Applications. He appears on the desktop and in the menu bar; there is no Dock icon. Open Pet.app again to show Pet home.
 
 The downloadable app is ad-hoc signed and is **not notarized**. On first launch, macOS may block it: Control-click Pet.app in Applications, choose **Open**, and confirm. This is expected for this locally signed build. If macOS still blocks it, use **Open Anyway** in System Settings → Privacy & Security. The disk image includes the complete app and dog artwork. It does not include icons from other apps; Pet reads those from apps installed on your Mac.
 
@@ -48,6 +48,6 @@ The app is written in Swift and AppKit with no third-party packages. The build u
 
 File promises from some apps, including Chrome and Photos, are not yet supported as Stash drops. Multi-monitor edge behavior has had limited testing. The app is not notarized, so installation requires the first-open step above.
 
-## Reuse
+## License
 
-This repository is source-available, but no open-source license has been granted. You may download, run, and share the official Pet.dmg for personal use. Please ask before reusing or redistributing the source code or dog artwork separately.
+The source code and build scripts are available under the [MIT License](LICENSE). The dog artwork in `Assets/` and the generated dog app icon are **not** covered by MIT; see the [artwork terms](Assets/README.md). You may download, run, and share the official Pet.dmg for personal use. Please ask before reusing the dog artwork separately.

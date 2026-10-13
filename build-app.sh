@@ -18,6 +18,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Pet "$APP/Contents/MacOS/Pet"
 cp Info.plist "$APP/Contents/Info.plist"
 cp Assets/pet-dog-atlas.png "$APP/Contents/Resources/pet-dog-atlas.png"
+cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
+cp Assets/README.md "$APP/Contents/Resources/ARTWORK-NOTICE.txt"
 
 echo "Drawing icon…"
 ICONSET="build/Pet.iconset"

@@ -16,6 +16,8 @@ rm -rf build/dmg-root "$DMG"
 # does not add Finder/file-provider attributes that invalidate the app seal.
 ditto --noextattr --noqtn build/Pet.app "$SHARE_APP"
 test -s "$SHARE_APP/Contents/Resources/pet-dog-atlas.png"
+test -s "$SHARE_APP/Contents/Resources/LICENSE.txt"
+test -s "$SHARE_APP/Contents/Resources/ARTWORK-NOTICE.txt"
 test ! -e "$SHARE_APP/Contents/Resources/pet-atlas.webp"
 xattr -cr "$SHARE_APP"
 ln -s /Applications "$DMG_ROOT/Applications"
