@@ -151,3 +151,11 @@ The 2026-10-07 drag pass makes picking up the dog feel like holding him by a col
 - `DESIGN.md` / `PLAN.md` describe the shark-era design; the state names and the hide behaviour come from there.
 
 The 2026-10-13 cursor-attached collar revision (`ace49b6`) was reverted at the owner's request. Dragging again uses the earlier held-dog sway and release motion from `6621cda`. The reverted version passed the release build, self-test, pose and ring renders, installed signature verification, and a fresh running-app snapshot (`atlas=true`).
+
+## Public GitHub release
+
+On 2026-10-14 the owner requested a public version. The development repository remains private at `neeraj-trax/pet-companion`. A clean public repository was created at https://github.com/neeraj-trax/pet-companion-public with a fresh root commit (`cda23a2`), so historic local paths, rejected concepts, and internal handoff notes are not exposed. Its v0.1.0 release includes the Apple Silicon DMG and `SHA256SUMS.txt`; the DMG SHA-256 is `c794332051b87b1499487b0f3e6aa943e520f7ecccc41fd2e0340d57afeb077a`. It is ad-hoc signed, not notarized. The public README covers installation, macOS 13+, features, privacy, source builds, limitations, and current reuse terms. No open-source license has been granted; ask the owner before adding one.
+
+The public snapshot includes `.gitignore`, `README.md`, `Package.swift`, `Info.plist`, `build-app.sh`, `build-dmg.sh`, `Sources/Pet/`, `Tools/prepare-dog-atlas.swift`, the six current dog PNGs in `Assets/`, and a macOS build workflow. Keep the legacy robot atlas, local build artifacts, Stash data, `START-HERE.md`, this file, and historical concept docs out of the public repository. Future public updates should copy only this allowlist into a clean public checkout, build and self-test there, verify the DMG contents and signature, then push and publish its release. Never merge or push the private repository's history into the public one.
+
+For this release, the public export built and self-tested independently; the pose and ring renders were inspected, the DMG was mounted read-only, its app signature and dog atlas were verified, and the installed development app's running snapshot reported `atlas=true`.

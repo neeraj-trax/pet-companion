@@ -2,5 +2,5 @@
 build/
 *.xcodeproj
 .DS_Store
-# sprite sheet is for personal use only; not shipped
+# Legacy local sprite: never commit or bundle
 Assets/pet-atlas.webp

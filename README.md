@@ -1,54 +1,53 @@
 # Pet
 
-A tiny desktop companion for your Mac. A blue floppy-eared dog sits at the edge of your screen,
-opens a ring of your favourite apps when you rest the cursor on it, keeps things you drop on it,
-and gets out of the way while you work.
+Pet is a small, animated dog that lives on your Mac desktop. Hover over him to open a quick ring of apps, drop something on him to keep it in Stash, or tuck him into his cushion when you want a quiet screen.
 
-## Install and open
-- Open `build/Pet.dmg`, drag Pet.app into Applications, then open it. On another Mac, macOS may
-  require right-click → Open the first time because the shareable app is signed locally.
-- The DMG includes the complete app, dog artwork and icon. App shortcuts use icons from the
-  apps installed on each Mac; those third-party icons are not included in the download.
-- The dog-face icon appears in the menu bar; there is no Dock icon. Open Pet.app again to show
-  Pet home. The menu-bar icon and right-clicking Pet both open the same short menu.
-- Pet home keeps the everyday choices together: color, size and app selection.
-- To rebuild on this Mac, use `./build-app.sh`, then follow `START-HERE.md` to reinstall. Use
-  `./build-dmg.sh` to refresh the shareable disk image. Both require Xcode or Command Line Tools.
+![Pet's dog poses and colours](Assets/pet-dog-atlas-preview.png)
 
-## Use it
-- **Move your cursor** onto Pet or just beside it → the app ring opens immediately. The chip under the
-  cursor grows like the Dock. Click to launch. The name pops out next to the chip.
-- **Manage apps**: open Pet home → "Edit Apps…" to add, remove or reorder (or right-click a chip).
-- **Recent apps mode**: in Pet home → Apps, choose **Recent 6**. The ring then shows the six apps you used most recently before the current app, updating as you switch apps. Choose **Pinned** to return to your saved app list. Pet remembers the mode and recent apps after relaunch.
-- **Drop** files, images, links or text on Pet → saved as copies in Stash. Open the floating shelf
-  from the ring or menu; it stays over full-screen apps without opening Finder. Drag an item into
-  another app, or click to select and use **Preview** (double-click also previews).
-- **Remove from Stash**: select one or more items and click **Remove**. Only the Stash copies move
-  to Trash; the originals stay where they were. **Undo** remains available until you close the shelf.
-- **Music**: when Spotify or Apple Music is playing, a player chip appears first in the ring;
-  click it to play/pause (macOS asks once for permission).
-- **Move it**: pick the dog up and drag him anywhere. He dangles and wriggles from his collar,
-  then settles when released. Near an edge he tucks into it; elsewhere he stays put.
-- **Let it sleep**: drag the dog onto the tiny cushion at the bottom-right edge and release.
-  The cushion expands with a half-size sleeping dog, closed eyes and floating “Zz.” He stays there
-  until you click the bed to wake him, even if you quit and reopen Pet.
-- **Out of the way**: when you type for a while or stay in one app for 15 minutes, it shrinks to
-  three-quarter size and strolls along the edge.
-  Move your cursor near it and it grows back. It stays visible across full-screen app Spaces.
-- **Follow cursor**: choose it from Pet's right-click or menu-bar menu. Pet trails beside the
-  pointer at its normal size, turns its face toward it when still, and changes sides near screen edges
-  without repeatedly flipping. It pauses and opens the app ring when you hover over it.
-  Double-click Pet to stop following;
-  you can also choose **Stop following** from the menu. Dragging Pet also turns follow mode off.
-- **Click** it to poke. When follow mode is off, **double-click** to jump to the app you were using before.
-- **Expressions**: its ears, eyes, face and body poses show how it feels. There is no face screen.
-- Right-click menu: Open Pet home, Open Stash, Follow cursor/Stop following, Quit Pet.
+## Download and install
 
-## Permissions
-Automation may be requested for music-app play/pause. Pet does not request microphone access.
+Pet currently runs on **Apple Silicon Macs with macOS 13 or later**. Download `Pet.dmg` from the [latest release](https://github.com/neeraj-trax/pet-companion-public/releases/latest), open it, and drag **Pet.app** into Applications. Launch Pet from Applications. He appears on the desktop and in the menu bar; there is no Dock icon. Open Pet.app again to show Pet home.
 
-## For developers / agents
-See `AGENTS.md` for the code map, how to verify without a screen, and what is unfinished.
-The shareable dog sprite sheet is `Assets/pet-dog-atlas.png`. Regenerate it and its labelled
-preview from `Assets/pet-dog-source.png` with `Tools/prepare-dog-atlas.swift`. Without the atlas,
-the app draws a fallback vector character. The old private robot atlas is not loaded or shipped.
+The downloadable app is ad-hoc signed and is **not notarized**. On first launch, macOS may block it: Control-click Pet.app in Applications, choose **Open**, and confirm. This is expected for this locally signed build. If macOS still blocks it, use **Open Anyway** in System Settings → Privacy & Security. The disk image includes the complete app and dog artwork. It does not include icons from other apps; Pet reads those from apps installed on your Mac.
+
+## What Pet does
+
+- **Quick app access:** Hover over Pet or just beside him. The app ring opens immediately. Click an app to launch it. In Pet home, choose your pinned apps or **Recent 6** for the six apps you used most recently before the current one.
+- **Stash:** Drop files, images, links, or text on Pet. Open Stash from the ring or menu to drag saved items into another app, including while you are in a full-screen Space. Select items to preview, remove, or undo a removal. Removing a Stash item moves its saved copy to Trash; it does not delete the original.
+- **Move him:** Drag Pet to a new spot. Click to poke him; when Follow cursor is off, double-click to switch back to your previous app.
+- **Music:** When Spotify or Apple Music is playing, a player chip can appear in the ring for play/pause.
+- **A place to rest:** Drag Pet onto the little cushion at the bottom-right edge of the screen. He sleeps there until you click the occupied cushion, even after a relaunch.
+- **Room to work:** Pet can shrink and stroll along an edge while you type. He stays available across desktop Spaces and full-screen apps.
+- **Follow cursor:** Turn this on from Pet's right-click or menu-bar menu. Double-click or drag Pet to stop following.
+- **Personalize:** Open Pet home to change his color, size, and app selection. Changes save automatically.
+
+## Privacy and permissions
+
+Pet keeps settings and app choices on your Mac. Things you drop on him are copied into `~/Library/Application Support/Pet/Stash/`; pinned apps are stored beside that folder, and settings use macOS preferences. The app does not send this data to a server. It does not request microphone access. If you use the Spotify or Apple Music play/pause chip, macOS may ask for Automation permission. A fresh install starts with an empty Stash.
+
+## Build from source
+
+Install Xcode Command Line Tools, then from the repository root run:
+
+```sh
+./build-app.sh  # release build, self-test, and build/Pet.app
+./build-dmg.sh  # shareable build/Pet.dmg
+```
+
+The app is written in Swift and AppKit with no third-party packages. The build uses your Mac's architecture; the published DMG is built for Apple Silicon. To verify a local build:
+
+```sh
+.build/release/Pet --selftest
+.build/release/Pet --render-poses build/poses.png
+.build/release/Pet --render-ring-live build/ring.png
+```
+
+`Assets/pet-dog-source.png` is the source sheet. `Tools/prepare-dog-atlas.swift` prepares the transparent runtime atlas and labeled preview. `build-app.sh` bundles the dog atlas and generated app icon. The legacy personal-use sprite is ignored by Git and is never loaded or packaged.
+
+## Limitations
+
+File promises from some apps, including Chrome and Photos, are not yet supported as Stash drops. Multi-monitor edge behavior has had limited testing. The app is not notarized, so installation requires the first-open step above.
+
+## Reuse
+
+This repository is source-available, but no open-source license has been granted. You may download and run the official release for personal use. Please ask before redistributing the source code or dog artwork.

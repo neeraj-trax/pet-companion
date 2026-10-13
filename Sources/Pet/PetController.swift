@@ -1134,7 +1134,7 @@ final class PetController: NSObject, NSMenuDelegate {
     private func decideNext() {
         let sinceNap = time - lastNapEnded
         let userAway = mouseStillFor > 150
-        let userBusy = mouseStillFor < 6 
+        let userBusy = mouseStillFor < 6
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let r = Double.random(in: 0..<1)
         _ = sinceNap; _ = userAway            // random naps are off; "Nap now" still works

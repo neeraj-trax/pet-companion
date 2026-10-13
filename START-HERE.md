@@ -1,11 +1,13 @@
 # Start here (new agent)
 
 Project folder: `/Users/passwordis1234/Documents/claude max experiment/PET`
-Git: https://github.com/neeraj-trax/pet-companion (private, branch `main`)
+Development Git: https://github.com/neeraj-trax/pet-companion (private, branch `main`)
+Public app and release: https://github.com/neeraj-trax/pet-companion-public
 
 1. Read `AGENTS.md` in this folder first. It has the code map, how the app works, how to verify without a screen, and the list of what is unfinished. Do not read every source file before starting.
 2. Read `VISUALS-HANDOFF.md` only if you are touching the drawing (`PetView.swift`, `Sprite.swift`).
-3. The dog character art is `Assets/pet-dog-atlas.png` and is included in shareable builds. The old private `Assets/pet-atlas.webp` remains ignored by Git and is not loaded or shipped.
+3. Public releases use a separate clean repository; do not push this private repository's history to it. See the public-release note at the end of `AGENTS.md`.
+4. The dog character art is `Assets/pet-dog-atlas.png` and is included in shareable builds. The old private `Assets/pet-atlas.webp` remains ignored by Git and is not loaded or shipped.
 
 ## Build and run
 
